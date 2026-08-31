@@ -77,10 +77,12 @@ python tools/skill_validator.py     # 17 skills, all valid
 THE FOCUX no necesita OpenClaw, CowAgent ni ningún runtime externo: se
 **sostiene sobre su propio `runtime/`** — cero dependencias de terceros para
 inferencia (solo `urllib`), con el money-gate y la constitución siempre en el
-camino.
+camino. El **tool layer gateado** (`runtime/tools.py`) le permite *actuar*:
+el LLM pide una tool, el gate decide ALLOW/REVIEW/DENY, y REVIEW devuelve una
+tarjeta de aprobación humana. Nada se ejecuta sin tu permiso.
 
 ```bash
-python -m focux skills                 # 17 skills cargados
+python -m focux skills                 # 56 skills cargados
 python -m focux run "publish a post about AI" --pillar content   # gate: REVIEW
 python -m focux repl                   # sesión interactiva con gates
 python -m focux run "analizar el nicho" --pillar research --draft # ALLOW + draft
