@@ -288,7 +288,12 @@ class Handler(BaseHTTPRequestHandler):
             tool = str(body.get("tool", ""))
             args = body.get("args", {}) if isinstance(body.get("args", {}), dict) else {}
             tr = reg.request(tool, args)
-            key = f"tool:{tool}:{str(args)[:80]}"
+            # SECURITY (round 10): the idempotency key must never embed
+            # secrets from args — redact before building it.
+            from runtime.redact import redact_mapping
+
+            safe_args = redact_mapping(dict(args))
+            key = f"tool:{tool}:{str(safe_args)[:80]}"
             if tr.decision == "REVIEW":
                 _pending[key] = {"tool": tool, "args": args}
             self._json({

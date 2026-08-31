@@ -49,7 +49,9 @@ def _tool_gate(args: dict) -> dict:
     result = agent.propose(
         pillar=pillar, objective=objective, amount=amount, target=target,
     )
-    return {"decision": result.decision, "summary": result.summary}
+    # Convention: decisions are UPPERCASE strings system-wide (CLI, webui,
+    # FocuxResult). The MCP surface matches them.
+    return {"decision": str(result.decision), "summary": result.summary}
 
 
 def _tool_skills(args: dict) -> dict:

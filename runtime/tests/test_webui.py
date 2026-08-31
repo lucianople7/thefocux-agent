@@ -90,6 +90,20 @@ def test_tool_gate_review(server) -> None:  # type: ignore[no-untyped-def]
     assert data["idempotency_key"]
 
 
+def test_tool_card_never_leaks_secrets(server) -> None:  # type: ignore[no-untyped-def]
+    """REGRESSION (round 10): approval card must never embed secrets."""
+    secret = "sk-live-ULTRAHIDDENsecret987"
+    status, data = _post("/api/tool", {
+        "tool": "update_credentials",
+        "args": {"target": "stripe", "secret": secret},
+    })
+    assert status == 200
+    assert data["decision"] == "REVIEW"
+    blob = str(data)
+    assert secret not in blob
+    assert "<redacted" in blob or "redacted" in blob
+
+
 def test_approve_flow(server) -> None:  # type: ignore[no-untyped-def]
     _, tool = _post("/api/tool", {"tool": "create_listing", "args": {"product": "ebook", "price": 19}})
     key = tool["idempotency_key"]
