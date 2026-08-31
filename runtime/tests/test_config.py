@@ -10,7 +10,7 @@ import pytest
 REPO = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO))
 
-from runtime.config import PROVIDERS, load_settings  # noqa: E402
+from runtime.config import PROVIDERS, _load_dotenv, load_settings  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -19,6 +19,17 @@ def _clean_env(monkeypatch):
     for key in list(os.environ):
         if key.startswith("FOCUX_"):
             monkeypatch.delenv(key, raising=False)
+    # The repo's real .env (DeepSeek) must not leak into REPO-based calls;
+    # tests that explicitly exercise .env use tmp_path and bypass this stub
+    # by calling load_settings(tmp_path) which is not REPO.
+    real_load = _load_dotenv
+
+    def _guarded_load(root):
+        if Path(root).resolve() == REPO.resolve():
+            return  # skip the real .env during tests
+        real_load(root)
+
+    monkeypatch.setattr("runtime.config._load_dotenv", _guarded_load)
     yield
 
 

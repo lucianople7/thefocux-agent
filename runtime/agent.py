@@ -260,3 +260,50 @@ class FocuxAgent:
             f"- Each step must produce an observable result (receipt/metric).\n"
             f"- Money/publish/account actions pass the money-gate first.\n"
         )
+
+    # -- ORCHESTRATOR: specialized business roles -----------------------------
+
+    def run_role(
+        self,
+        role_name: str,
+        *,
+        objective: str = "",
+        tainted: bool = False,
+    ) -> FocuxResult:
+        """Run one specialized business role, gated (proposal-only).
+
+        Each role maps to a pillar and an action class; the money-gate
+        decides ALLOW/REVIEW/DENY BEFORE any draft is produced. A REVIEW
+        result returns the approval card — nothing is published, sent or
+        paid without the human.
+        """
+        from .orchestrator import role_named
+
+        role = role_named(role_name)
+        if role is None:
+            return FocuxResult(
+                ok=False,
+                decision="DENY",
+                summary=f"unknown role: {role_name}",
+            )
+        result = self.propose(
+            pillar=role.pillar,
+            objective=objective or f"{role.name} routine",
+            tainted=tainted,
+        )
+        if result.decision != "ALLOW":
+            return result
+        # READ-class roles may draft; money/commerce/content/account REVIEW.
+        try:
+            draft = self.draft(
+                objective or f"Execute the {role.name} routine for today.",
+                skill_name=role.skill,
+            )
+        except Exception as exc:  # noqa: BLE001 - drafting is best-effort
+            draft = f"(draft unavailable: {type(exc).__name__})"
+        return FocuxResult(
+            ok=True,
+            decision="ALLOW",
+            summary=f"{role.name} drafted (within policy)",
+            content=draft,
+        )

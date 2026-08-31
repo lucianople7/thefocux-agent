@@ -1,0 +1,106 @@
+"""E2E test for the FOCUX MCP bridge — the DNA reachable from Codex/MCP hosts."""
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent.parent
+
+
+def _run_mcp(messages: list[dict]) -> list[dict]:
+    lines = [json.dumps(m) for m in messages]
+    proc = subprocess.run(
+        [sys.executable, "mcp_bridge.py"],
+        input="\n".join(lines) + "\n",
+        capture_output=True,
+        text=True,
+        cwd=str(REPO),
+        timeout=60,
+    )
+    assert proc.returncode == 0, proc.stderr
+    return [json.loads(line) for line in proc.stdout.splitlines() if line.strip()]
+
+
+def test_initialize() -> None:
+    out = _run_mcp([{"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                     "params": {"protocolVersion": "2024-11-05", "capabilities": {}}}])
+    assert out[0]["result"]["serverInfo"]["name"] == "thefocux-dna"
+    assert "tools" in out[0]["result"]["capabilities"]
+
+
+def test_tools_list() -> None:
+    out = _run_mcp([
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+         "params": {"protocolVersion": "2024-11-05", "capabilities": {}}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
+    ])
+    result = out[-1]["result"]
+    names = [t["name"] for t in result["tools"]]
+    assert "focux_gate" in names
+    assert "focux_skills" in names
+    assert "focux_memory" in names
+    assert "focux_learn" in names
+    assert "focux_redact" in names
+
+
+def test_gate_tool() -> None:
+    out = _run_mcp([
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+         "params": {"protocolVersion": "2024-11-05", "capabilities": {}}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+         "params": {"name": "focux_gate",
+                    "arguments": {"pillar": "monetization", "objective": "payout", "amount": 100}}},
+    ])
+    result = out[-1]["result"]
+    text = result["content"][0]["text"]
+    data = json.loads(text)
+    assert data["decision"] in ("ALLOW", "REVIEW", "DENY")
+
+
+def test_skills_tool() -> None:
+    out = _run_mcp([
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+         "params": {"protocolVersion": "2024-11-05", "capabilities": {}}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+         "params": {"name": "focux_skills", "arguments": {}}},
+    ])
+    data = json.loads(out[-1]["result"]["content"][0]["text"])
+    assert data["count"] >= 17
+
+
+def test_redact_tool() -> None:
+    out = _run_mcp([
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+         "params": {"protocolVersion": "2024-11-05", "capabilities": {}}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+         "params": {"name": "focux_redact",
+                    "arguments": {"text": '{"api_key": "sk-abcdefghijklmnop", "topic": "AI"}'}}},
+    ])
+    data = json.loads(out[-1]["result"]["content"][0]["text"])
+    assert "sk-abcdefghijklmnop" not in data["redacted"]
+
+
+def test_unknown_tool_error() -> None:
+    out = _run_mcp([
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+         "params": {"protocolVersion": "2024-11-05", "capabilities": {}}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+         "params": {"name": "nope", "arguments": {}}},
+    ])
+    assert "error" in out[-1]
+
+
+def test_learn_tool_crystallizes_draft(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    # learn tool requires drafts_dir on the agent; default agent has none, so
+    # it returns learned=False gracefully rather than crashing.
+    out = _run_mcp([
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+         "params": {"protocolVersion": "2024-11-05", "capabilities": {}}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+         "params": {"name": "focux_learn",
+                    "arguments": {"name": "x", "steps": ["a", "b"]}}},
+    ])
+    data = json.loads(out[-1]["result"]["content"][0]["text"])
+    assert "learned" in data  # False gracefully when no drafts_dir

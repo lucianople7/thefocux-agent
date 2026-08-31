@@ -135,6 +135,37 @@ def cmd_promote(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_agents(args: argparse.Namespace) -> int:
+    """List the 9 specialized business roles (+ due now / run one)."""
+    from datetime import datetime
+
+    from runtime.orchestrator import all_roles, due_roles, role_named
+
+    if args.run:
+        agent = build_agent()
+        role = role_named(args.run)
+        if role is None:
+            print(f"unknown role: {args.run}")
+            return 2
+        result = agent.run_role(args.run, objective=args.objective)
+        print(f"[{result.decision}] {result.summary}")
+        if result.content:
+            print(result.content)
+        return 0 if result.ok else 1
+
+    now = datetime.now()
+    due = {r.name for r in due_roles(now)}
+    for role in all_roles():
+        marker = " ◀ due now" if role.name in due else ""
+        print(
+            f"- {role.name:20s} {role.pillar:12s} "
+            f"{role.action_class.value:10s} {role.cadence:12s} "
+            f"skill={role.skill}{marker}"
+        )
+    print(f"\n{len(all_roles())} roles · run one: python -m focux agents --run <name>")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="focux", description="THE FOCUX Agent")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -161,6 +192,11 @@ def main(argv: list[str] | None = None) -> int:
     promote = sub.add_parser("promote", help="promote a DRAFT skill to active (HUMAN review)")
     promote.add_argument("name")
     promote.set_defaults(func=cmd_promote)
+
+    agents = sub.add_parser("agents", help="list/run the 9 specialized business roles")
+    agents.add_argument("--run", default="", help="run one role (gated)")
+    agents.add_argument("--objective", default="", help="objective for --run")
+    agents.set_defaults(func=cmd_agents)
 
     args = parser.parse_args(argv)
     return args.func(args)

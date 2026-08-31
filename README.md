@@ -108,10 +108,34 @@ para afinar policy contra tráfico real antes de exigirla.
 
 ```bash
 python -m focux skills                 # 56 skills cargados
+python -m focux agents                 # 9 roles de negocio con horarios
+python -m focux agents --run planning  # ejecutar un rol (gateado)
 python -m focux run "publish a post about AI" --pillar content   # gate: REVIEW
 python -m focux repl                   # sesión interactiva con gates
 python -m focux run "analizar el nicho" --pillar research --draft # ALLOW + draft
 ```
+
+## Orquestador: 9 roles de negocio con horarios
+
+El patrón de agentes especializados (estilo Polsia) implementado de forma
+original en `runtime/orchestrator.py` — determinista (sin LLM en los
+schedules), cada rol mapeado a un pilar + clase de acción + skill, y SIEMPRE
+gateado por el money-gate:
+
+| Rol | Pilar | Clase | Cadencia | Skill |
+|---|---|---|---|---|
+| orchestrator | research | read | 06:00 / 20:00 | cadence |
+| planning | research | read | daily | content-matrix |
+| competitor-research | research | read | daily | research |
+| social-media | content | content | every 2h | post-writer |
+| email-outreach | content | content | every 3h | post-formatter |
+| customer-support | content | content | every 3h | post-writer |
+| ads | monetization | commerce | every 6h | commerce-ops |
+| code | account | account | on demand | incremental-implementation |
+| finance | monetization | money | every 6h | money-gate |
+
+`finance` → REVIEW (dinero nunca auto); `social-media`/`email` → REVIEW
+(publicar/enviar requiere aprobación); `planning`/`research` → ALLOW + draft.
 
 Provider (agnóstico, por env o `.env` — copia `.env.example`):
 
