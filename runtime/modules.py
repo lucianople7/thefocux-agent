@@ -63,6 +63,8 @@ MODULES: tuple[Module, ...] = (
            deps=("money-gate", "constitution"), entry="runtime.repurpose"),
     Module("offer", "1.0.0", "5-rung offer ladder: attention -> revenue",
            deps=("constitution",), entry="runtime.offer"),
+    Module("ingest", "1.0.0", "Real-data absorption: github/huggingface/x sensors -> memory",
+           deps=("memory",), entry="runtime.ingest"),
     Module("mcp-bridge", "1.0.0", "The brain as MCP tools for any agent",
            deps=("tools", "memory", "survival", "heartbeat", "orchestrator",
                  "selfmod"), entry="mcp_bridge"),

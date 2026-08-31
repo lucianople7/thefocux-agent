@@ -66,8 +66,9 @@ focux heartbeat --revenue 3000 --cost 2000 --cash 5000 --approvals 2
 focux doctor        # brain diagnostics (skills, gates, provider, survival, audit)
 focux attach ./neg  # agent-first workspace: AGENTS.md + metaskill + constitución
                     # + SQLite memory initialized + .env + .gitignore
-focux modules       # sistema modular: 16 órganos registrados + integrity check
+focux modules       # sistema modular: 19 órganos registrados + integrity check
 focux evolve        # evolución diaria: analiza lo ejecutado, propone mejoras
+focux absorb        # absorbe DATOS REALES (github/huggingface/x) a la memoria
 focux multiply '<insight>'   # REVENUE MULTIPLIER: 1 pieza -> 20+ activos
 focux offer         # escalera de 5 peldaños: atención -> ingresos
 ```
@@ -109,12 +110,29 @@ append-only. Todo es propuesta: nada se auto-activa.
 
 ## Sistema modular — cada órgano registrado y verificado
 
-`focux modules` lista los 16 órganos del brain (money-gate, constitution,
+`focux modules` lista los 19 órganos del brain (money-gate, constitution,
 soul, voice, content, memory, tools, eval, survival, heartbeat, selfmod,
-orchestrator, evolution, mcp-bridge, webui...) con versión semver y
-dependencias. `integrity_check` **prueba que cada módulo importa y que el
-falsification del money-gate sigue verde** — un módulo nuevo no puede romper
-el sistema inmune en silencio.
+orchestrator, evolution, repurpose, offer, ingest, mcp-bridge, webui...) con
+versión semver y dependencias. `integrity_check` **prueba que cada módulo
+importa y que el falsification del money-gate sigue verde** — un módulo nuevo
+no puede romper el sistema inmune en silencio.
+
+## Absorción de datos reales — el cerebro que ve el mundo
+
+`focux absorb` alimenta ANALIZAR con señales REALES, no vibes:
+
+```bash
+focux absorb --sources github,huggingface --query "ai agent" --workspace research
+```
+
+- **GitHub** — qué crece: repos del tema ordenados por estrellas (API pública)
+- **Hugging Face** — qué viene: modelos y datasets en tendencia (API pública)
+- **X** — qué funciona en el nicho: requiere `X_BEARER_TOKEN` opcional; sin
+  token **degrada con honestidad** (reporta "token required", jamás inventa datos)
+
+Todo se guarda como eventos de memoria (`absorb:github`, `absorb:huggingface`,
+`absorb:x:error`) para que el brain ANALICE con datos de verdad. La ingesta es
+solo lectura: ningún sensor ejecuta acciones, y el money-gate sigue mandando.
 
 ## Agent-first: el brain completo vía MCP
 
@@ -280,8 +298,13 @@ Monta los skills en cualquier shell agente-nativo apuntando su `skills.dirs`
 
 ```
 thefocux-agent/
-├── focux.py               # CLI: run | repl | skills
+├── focux.py               # CLI: run | repl | skills | absorb | multiply
 ├── runtime/               # runtime propio: agente, LLM, skills (sin shell)
+│   ├── ingest.py          #   sensores reales: github/huggingface/x -> memoria
+│   ├── repurpose.py       #   multiplier: 1 pieza -> 20+ activos
+│   ├── offer.py           #   escalera de 5 peldaños: atención -> ingresos
+│   ├── evolution.py       #   ciclo diario: analiza -> propone mejoras
+│   └── modules.py         #   registro modular (19 órganos) + integrity check
 ├── policy/                # DNA determinista, NO LLM en rutas de decisión
 │   ├── money_gate.py      #   approval boundary (ALLOW/REVIEW/DENY)
 │   ├── constitution.py    #   3 leyes inmutables como código
@@ -290,7 +313,7 @@ thefocux-agent/
 │   ├── focux_content.py   #   content matrix + hook generator
 │   ├── focux_cli.py       #   capa CLI agente-nativa (gating)
 │   └── tests/             #   90+ tests, falsification verde
-├── skills/                # 56 SKILL.md (17 contenido + 14 negocio + 25 ingeniería)
+├── skills/                # 57 SKILL.md (contenido + negocio + ingeniería)
 ├── soul/SOUL.md.template  # identidad evolutiva (validada)
 ├── tools/skill_validator.py
 ├── constitution.md        # las 3 leyes (docs)

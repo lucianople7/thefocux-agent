@@ -371,6 +371,40 @@ def cmd_offer(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_absorb(args: argparse.Namespace) -> int:
+    """Absorb REAL data from GitHub / Hugging Face / X into memory."""
+    import os
+
+    from runtime.ingest import absorb, format_absorb, store_results
+
+    sources = tuple(s.strip().lower() for s in args.sources.split(",") if s.strip())
+    if not sources:
+        print("usage: focux absorb --sources github,huggingface,x [--query 'ai agent']")
+        return 2
+    x_bearer = os.environ.get("X_BEARER_TOKEN", "")
+    results = absorb(
+        sources=sources,
+        github_query=args.query,
+        x_bearer=x_bearer,
+        x_query=args.query,
+        limit=args.limit,
+    )
+    print(format_absorb(results))
+
+    # store into memory so the brain can ANALIZAR with real signals
+    from runtime.memory import FocuxMemory
+
+    mem = FocuxMemory(REPO_ROOT / "memory" / "focux.db")
+    try:
+        stored = store_results(results, mem, workspace=args.workspace)
+    finally:
+        mem.close()
+    ok_sources = [s for s, r in results.items() if r.ok]
+    print(f"\nabsorbed into memory ({args.workspace}): {stored} items "
+          f"from {', '.join(ok_sources) or 'no source'}")
+    return 0 if ok_sources else 1
+
+
 def cmd_modules(args: argparse.Namespace) -> int:
     """Modular system: every brain organ registered + integrity check."""
     from runtime.modules import all_modules, integrity_check
@@ -448,9 +482,26 @@ def main(argv: list[str] | None = None) -> int:
     offer.add_argument("--business", default="the business")
     offer.set_defaults(func=cmd_offer)
 
+    absorb = sub.add_parser("absorb", help="absorb REAL data (github/huggingface/x) into memory")
+    absorb.add_argument("--sources", default="github,huggingface",
+                        help="comma list: github,huggingface,x")
+    absorb.add_argument("--query", default="ai agent", help="search query")
+    absorb.add_argument("--limit", type=int, default=10)
+    absorb.add_argument("--workspace", default="default")
+    absorb.set_defaults(func=cmd_absorb)
+
     args = parser.parse_args(argv)
     return args.func(args)
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except BrokenPipeError:
+        # Downstream closed the pipe early (e.g. `focux ... | head`):
+        # exit quietly like standard Unix tools instead of crashing.
+        import os
+
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, 1)
+        raise SystemExit(0)
