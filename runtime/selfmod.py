@@ -54,14 +54,18 @@ class SelfModLog:
         reversible: bool = True,
         data: dict[str, Any] | None = None,
     ) -> SelfModEntry:
-        """Append a modification entry. Never edits history."""
+        """Append a modification entry. Never edits history.
+
+        ``data`` is serialized safely: non-JSON values degrade to their str
+        form instead of raising (the audit must never break the agent).
+        """
         entry = SelfModEntry(
             id=_new_id(),
             timestamp=datetime.now(UTC).isoformat(timespec="seconds"),
             kind=kind,
             description=description,
             reversible=reversible,
-            data=data or {},
+            data=_safe_data(data),
         )
         with open(self._path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry.as_dict(), ensure_ascii=False) + "\n")
@@ -92,6 +96,20 @@ def _new_id() -> str:
     import uuid
 
     return uuid.uuid4().hex[:12]
+
+
+def _safe_data(data: dict[str, Any] | None) -> dict[str, Any]:
+    """Make audit data JSON-safe: non-serializable values degrade to str."""
+    if not data:
+        return {}
+    safe: dict[str, Any] = {}
+    for key, value in data.items():
+        try:
+            json.dumps(value)
+            safe[key] = value
+        except (TypeError, ValueError):
+            safe[key] = f"<non-serializable:{type(value).__name__}>"
+    return safe
 
 
 class RateLimiter:

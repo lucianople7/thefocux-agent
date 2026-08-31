@@ -127,9 +127,16 @@ def cmd_drafts(args: argparse.Namespace) -> int:
 def cmd_promote(args: argparse.Namespace) -> int:
     from runtime.skills import promote_skill
 
-    target = promote_skill(
-        REPO_ROOT / "skills-draft", REPO_ROOT / "skills", args.name
-    )
+    try:
+        target = promote_skill(
+            REPO_ROOT / "skills-draft", REPO_ROOT / "skills", args.name
+        )
+    except FileNotFoundError:
+        print(f"no draft skill named '{args.name}' (check: focux drafts)")
+        return 2
+    except ValueError as exc:
+        print(f"cannot promote: {exc}")
+        return 2
     print(f"promoted {args.name} -> {target}")
     print("HUMAN REVIEW: the skill is now active in skills/. Review it first.")
     return 0

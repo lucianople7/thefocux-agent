@@ -84,6 +84,17 @@ def test_selfmod_append_only(tmp_path: Path) -> None:
     assert log.count("skill_crystallized") == 1
 
 
+def test_selfmod_handles_non_serializable_data(tmp_path: Path) -> None:
+    """REGRESSION (round 1): audit must never break on weird data."""
+    log = SelfModLog(tmp_path / "selfmod.jsonl")
+    entry = log.append("skill_crystallized", "weird", data={"obj": object()})
+    # entry readable back, non-serializable degraded
+    entries = log.entries()
+    assert len(entries) == 1
+    assert "non-serializable" in entries[0].data["obj"]
+    assert entry.id == entries[0].id
+
+
 def test_selfmod_persists(tmp_path: Path) -> None:
     path = tmp_path / "selfmod.jsonl"
     log1 = SelfModLog(path)
