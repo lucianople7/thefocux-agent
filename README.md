@@ -68,7 +68,31 @@ focux attach ./neg  # agent-first workspace: AGENTS.md + metaskill + constituci�
                     # + SQLite memory initialized + .env + .gitignore
 focux modules       # sistema modular: 16 órganos registrados + integrity check
 focux evolve        # evolución diaria: analiza lo ejecutado, propone mejoras
+focux multiply '<insight>'   # REVENUE MULTIPLIER: 1 pieza -> 20+ activos
+focux offer         # escalera de 5 peldaños: atención -> ingresos
 ```
+
+## Revenue multiplier — el mecanismo del 20x
+
+El multiplicador probado (el sistema de Charlie Hills genera 100M vistas/año
+así): **1 pieza de contenido → 20+ activos distribuibles**, cada uno con su
+plataforma, su formato, su hook y su CTA hacia la oferta.
+
+```bash
+focux multiply "El agente que convierte atención en ingresos" --draft
+# CONTENT MULTIPLIER — 20 outputs from 1 asset
+#   [OK] linkedin-post        LinkedIn   post
+#   [OK] x-thread             X          thread (5-8 tweets)
+#   [OK] instagram-carousel   Instagram  carousel outline (8 slides)
+#   [OK] youtube-script       YouTube    short script
+#   ... 20 outputs, cada CTA apunta a la escalera de ofertas
+```
+
+`focux offer` muestra la **escalera de 5 peldaños**: free → lead → entry
+($9-49) → core ($99-499) → premium ($500+). Cada peldaño crea valor real
+(Law II: la escalera monetiza confianza, no presión). El rol `multiplier`
+del orquestador ejecuta el ciclo completo: 1 insight → 20 activos con CTA →
+escalera que convierte.
 
 ## Evolución diaria — el brain mejora solo, todos los días
 

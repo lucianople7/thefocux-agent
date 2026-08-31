@@ -67,6 +67,10 @@ ROLES: dict[str, dict[str, object]] = {
         "pillar": "research", "action_class": ActionClass.READ,
         "cadence": "daily", "skill": "focux-brain",
     },
+    "multiplier": {
+        "pillar": "content", "action_class": ActionClass.READ,
+        "cadence": "on demand", "skill": "post-writer",
+    },
 }
 
 

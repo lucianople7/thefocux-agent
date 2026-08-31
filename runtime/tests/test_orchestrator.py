@@ -41,14 +41,14 @@ class _StubLLM:
         return "role draft output"
 
 
-def test_ten_roles() -> None:
+def test_eleven_roles() -> None:
     roles = all_roles()
-    assert len(roles) == 10
+    assert len(roles) == 11
     names = {r.name for r in roles}
     assert names == {
         "orchestrator", "planning", "competitor-research", "social-media",
         "email-outreach", "customer-support", "ads", "code", "finance",
-        "evolution",
+        "evolution", "multiplier",
     }
 
 

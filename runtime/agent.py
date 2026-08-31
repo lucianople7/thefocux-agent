@@ -121,16 +121,18 @@ class FocuxAgent:
         content: str = "",
         claims: tuple[Claim, ...] = (),
         tainted: bool = False,
+        action_class: ActionClass | None = None,
     ) -> FocuxResult:
         """Run one ANALIZAR -> PLANIFICAR -> EJECUTAR step, gated.
 
         ``propose`` never executes: it classifies the action, runs the
         money-gate, runs the constitution, and returns the verdict. The
         caller (CLI/REPL/shell) decides what to do with an ALLOW; REVIEW is
-        the human-approval path.
+        the human-approval path. ``action_class`` overrides the pillar-based
+        classification (roles declare their class explicitly).
         """
         action = Action(
-            action_class=classify_pillar(pillar),
+            action_class=action_class or classify_pillar(pillar),
             amount=amount,
             target=target,
             idempotency_key=idempotency_key,
@@ -293,6 +295,23 @@ class FocuxAgent:
 
     # -- ORCHESTRATOR: specialized business roles -----------------------------
 
+    def _draft_multiplier(self, asset, insight, offer) -> str:
+        """LLM writer for the multiplier: fills one output in the voice."""
+        from .repurpose import MultipliedAsset
+
+        if not isinstance(asset, MultipliedAsset):
+            return ""
+        try:
+            return self.draft(
+                f"Write the {asset.format} for {asset.platform}. "
+                f"Brief: {asset.brief}. CTA: {asset.cta}. "
+                f"Core insight: {insight}."
+                + (f" Offer: {offer}." if offer else ""),
+                skill_name="post-writer",
+            )
+        except Exception:  # noqa: BLE001 - drafting is best-effort
+            return ""
+
     def run_role(
         self,
         role_name: str,
@@ -320,6 +339,7 @@ class FocuxAgent:
             pillar=role.pillar,
             objective=objective or f"{role.name} routine",
             tainted=tainted,
+            action_class=role.action_class,
         )
         if result.decision != "ALLOW":
             return result
@@ -347,6 +367,18 @@ class FocuxAgent:
                 decision="ALLOW",
                 summary=report.summary,
                 content=format_report(report),
+            )
+        # The multiplier role runs the real 1->20 repurpose pass.
+        if role.name == "multiplier":
+            from .repurpose import format_plan, multiply
+
+            insight = objective or "the core insight"
+            assets = multiply(insight, offer="", write=self._draft_multiplier)
+            return FocuxResult(
+                ok=True,
+                decision="ALLOW",
+                summary=f"multiplied 1 asset into {len(assets)} outputs",
+                content=format_plan(assets),
             )
         # READ-class roles may draft; money/commerce/content/account REVIEW.
         try:

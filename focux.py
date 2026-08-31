@@ -331,6 +331,46 @@ def cmd_evolve(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_multiply(args: argparse.Namespace) -> int:
+    """1 asset -> 20+ distributable outputs (the revenue multiplier)."""
+    from runtime.repurpose import format_plan, multiply
+
+    if not args.insight:
+        print("usage: focux multiply '<core insight>' [--offer '<offer>'] [--draft]")
+        return 2
+    write = None
+    if args.draft:
+        agent = build_agent()
+
+        def _write(asset, insight, offer):
+            return agent.draft(
+                f"Write the {asset.format} for platform {asset.platform}. "
+                f"Brief: {asset.brief}. CTA: {asset.cta}. "
+                f"Core insight: {insight}. "
+                + (f"Offer: {offer}." if offer else ""),
+                skill_name="post-writer",
+            )
+
+        write = _write
+    assets = multiply(args.insight, offer=args.offer, write=write)
+    print(format_plan(assets))
+    if args.draft:
+        print("\n--- drafts ---")
+        for asset in assets:
+            if asset.draft:
+                print(f"[{asset.id}]\n{asset.draft[:300]}\n")
+    return 0
+
+
+def cmd_offer(args: argparse.Namespace) -> int:
+    """The 5-rung offer ladder: attention -> revenue."""
+    from runtime.offer import build_ladder, format_ladder
+
+    ladder = build_ladder(business=args.business)
+    print(format_ladder(ladder))
+    return 0
+
+
 def cmd_modules(args: argparse.Namespace) -> int:
     """Modular system: every brain organ registered + integrity check."""
     from runtime.modules import all_modules, integrity_check
@@ -397,6 +437,16 @@ def main(argv: list[str] | None = None) -> int:
 
     modules = sub.add_parser("modules", help="modular system: organs + integrity check")
     modules.set_defaults(func=cmd_modules)
+
+    multiply = sub.add_parser("multiply", help="1 asset -> 20+ outputs (revenue multiplier)")
+    multiply.add_argument("insight", help="core insight to multiply")
+    multiply.add_argument("--offer", default="", help="offer for the CTAs")
+    multiply.add_argument("--draft", action="store_true", help="draft each output via LLM")
+    multiply.set_defaults(func=cmd_multiply)
+
+    offer = sub.add_parser("offer", help="5-rung offer ladder: attention -> revenue")
+    offer.add_argument("--business", default="the business")
+    offer.set_defaults(func=cmd_offer)
 
     args = parser.parse_args(argv)
     return args.func(args)

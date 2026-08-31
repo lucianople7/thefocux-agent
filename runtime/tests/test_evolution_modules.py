@@ -125,7 +125,7 @@ def test_evolution_role_in_orchestrator() -> None:
     assert role.pillar == "research"
     names = {r.name for r in all_roles()}
     assert "evolution" in names
-    assert len(names) == 10
+    assert len(names) == 11
 
 
 def test_run_role_evolution(tmp_path: Path) -> None:
