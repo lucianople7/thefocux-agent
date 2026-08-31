@@ -10,13 +10,15 @@ negocio es su núcleo nativo — código Python puro, determinista, testeable �
 que se conecta a **cualquier LLM**, acepta **cualquier skill de agente**, y
 está preparado para **el mundo real** (gates humanos, receipts, proposal-only).
 
-**42 skills**: 17 de negocio (voz, contenido, commerce, monetización,
-research, CLI) + **25 de ingeniería de producción** (todos los de
-[addyosmani/agent-skills](https://github.com/addyosmani/agent-skills), MIT):
-spec→plan→build→test→review→ship, frontend, APIs, CI/CD, seguridad,
-observabilidad, debugging, deploy, ADRs. THE FOCUX no solo gestiona negocio —
-**construye su propio mundo**: código, interfaces, pipelines y docs con
-disciplina production-grade.
+**56 skills**: **17 de contenido** (el sistema completo de
+[Charlie Hills social-media-skills](https://github.com/charlie947/social-media-skills),
+MIT — voice, posts, carousels, reels, thumbnails, scoring, analytics) + **14 de
+negocio** (commerce, monetización, research, CLI, gates) + **25 de ingeniería de
+producción** ([addyosmani/agent-skills](https://github.com/addyosmani/agent-skills),
+MIT): spec→plan→build→test→review→ship, frontend, APIs, CI/CD, seguridad,
+observabilidad, debugging, deploy, ADRs. THE FOCUX crea contenido con una voz
+aprendida, gestiona negocio y **construye su propio mundo**: código,
+interfaces, pipelines y docs con disciplina production-grade.
 
 </div>
 
@@ -106,7 +108,7 @@ thefocux-agent/
 │   ├── focux_content.py   #   content matrix + hook generator
 │   ├── focux_cli.py       #   capa CLI agente-nativa (gating)
 │   └── tests/             #   90+ tests, falsification verde
-├── skills/                # 42 SKILL.md (17 negocio + 25 ingeniería production-grade)
+├── skills/                # 56 SKILL.md (17 contenido + 14 negocio + 25 ingeniería)
 ├── soul/SOUL.md.template  # identidad evolutiva (validada)
 ├── tools/skill_validator.py
 ├── constitution.md        # las 3 leyes (docs)
