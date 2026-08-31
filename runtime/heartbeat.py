@@ -26,6 +26,7 @@ class HeartbeatReport:
     roles_next: dict[str, float]  # role -> minutes until next due
     pending_approvals: int
     healthy: bool
+    momentum: dict[str, object] = None  # type: ignore[assignment]  # winner metrics
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -36,7 +37,57 @@ class HeartbeatReport:
             "roles_next_minutes": self.roles_next,
             "pending_approvals": self.pending_approvals,
             "healthy": self.healthy,
+            "momentum": self.momentum or {},
         }
+
+
+def _momentum() -> dict[str, object]:
+    """Winner metrics: execution success ratio + learning rate.
+
+    Read-only, deterministic: procedures from memory (success vs fail),
+    skills crystallized from the self-mod audit. Momentum = the brain is
+    winning when success ratio rises and it keeps learning.
+    """
+    from pathlib import Path
+
+    from .selfmod import SelfModLog
+
+    procs: list[tuple[int, int]] = []
+    memory_dir = Path("memory")
+    try:
+        from .memory import FocuxMemory
+
+        if (memory_dir / "focux.db").is_file():
+            mem = FocuxMemory(memory_dir / "focux.db")
+            try:
+                for workspace in ("default", "content", "billing", "research"):
+                    procs.extend(
+                        (p.success_count, p.fail_count)
+                        for p in mem.procedures(workspace)
+                    )
+            finally:
+                mem.close()
+    except Exception:  # noqa: BLE001 - metrics are best-effort
+        pass
+
+    successes = sum(s for s, f in procs)
+    failures = sum(f for s, f in procs)
+    total = successes + failures
+    success_ratio = (successes / total) if total else None
+
+    try:
+        crystallized = SelfModLog().count("skill_crystallized")
+    except Exception:  # noqa: BLE001
+        crystallized = 0
+
+    return {
+        "procedures_run": total,
+        "successes": successes,
+        "failures": failures,
+        "success_ratio": round(success_ratio, 3) if success_ratio is not None else None,
+        "skills_crystallized": crystallized,
+        "winning": (success_ratio or 0) >= 0.5 and crystallized >= 0,
+    }
 
 
 def heartbeat(
@@ -73,6 +124,7 @@ def heartbeat(
         roles_next=next_map,
         pending_approvals=pending_approvals,
         healthy=healthy,
+        momentum=_momentum(),
     )
 
 
@@ -94,4 +146,14 @@ def format_report(report: HeartbeatReport) -> str:
     )
     lines.append("Next: " + next_line)
     lines.append("Healthy: " + ("yes" if report.healthy else "NO"))
+    if report.momentum:
+        m = report.momentum
+        ratio = m.get("success_ratio")
+        ratio_s = f"{ratio*100:.0f}%" if ratio is not None else "n/a"
+        lines.append(
+            "Momentum: "
+            f"{m.get('procedures_run', 0)} runs · {ratio_s} success · "
+            f"{m.get('skills_crystallized', 0)} skills crystallized · "
+            + ("WINNING" if m.get("winning") else "building")
+        )
     return "\n".join(lines)

@@ -194,6 +194,12 @@ def test_heartbeat_report_shape() -> None:
     assert "roles_due" in hb.as_dict()
     assert "roles_next_minutes" in hb.as_dict()
     assert "pending_approvals" in hb.as_dict()
+    # WINNER'S MINDSET: momentum metrics present and truthful
+    assert "momentum" in hb.as_dict()
+    m = hb.momentum
+    assert "success_ratio" in m
+    assert "skills_crystallized" in m
+    assert "winning" in m
 
 
 def test_heartbeat_healthy_flag() -> None:
@@ -211,3 +217,4 @@ def test_format_report() -> None:
     text = format_report(hb)
     assert "HEARTBEAT" in text
     assert "Tier:" in text
+    assert "Momentum:" in text  # winner metrics shown
