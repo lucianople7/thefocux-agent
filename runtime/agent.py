@@ -323,6 +323,31 @@ class FocuxAgent:
         )
         if result.decision != "ALLOW":
             return result
+        # The evolution role runs the real daily cycle (analyze -> improve).
+        if role.name == "evolution":
+            from pathlib import Path
+
+            from .evolution import analyze, format_report
+
+            if self._memory is not None:
+                report = analyze(
+                    self._memory, self._workspace,
+                    drafts_dir=Path("skills-draft"),
+                )
+            else:
+                from .evolution import run_daily_evolution
+
+                report = run_daily_evolution(
+                    workspace=self._workspace,
+                    memory_dir=Path("memory"),
+                    drafts_dir=Path("skills-draft"),
+                )
+            return FocuxResult(
+                ok=True,
+                decision="ALLOW",
+                summary=report.summary,
+                content=format_report(report),
+            )
         # READ-class roles may draft; money/commerce/content/account REVIEW.
         try:
             draft = self.draft(

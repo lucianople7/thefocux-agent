@@ -318,6 +318,33 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+def cmd_evolve(args: argparse.Namespace) -> int:
+    """Daily evolution cycle: analyze executed work, propose improvements."""
+    from runtime.evolution import format_report, run_daily_evolution
+
+    report = run_daily_evolution(
+        workspace=args.workspace,
+        memory_dir=REPO_ROOT / "memory",
+        drafts_dir=REPO_ROOT / "skills-draft",
+    )
+    print(format_report(report))
+    return 0
+
+
+def cmd_modules(args: argparse.Namespace) -> int:
+    """Modular system: every brain organ registered + integrity check."""
+    from runtime.modules import all_modules, integrity_check
+
+    for module in all_modules():
+        deps = f" deps={','.join(module.deps)}" if module.deps else ""
+        print(f"- {module.id:14s} v{module.version:5s} {module.description}{deps}")
+
+    check = integrity_check()
+    print(f"\nINTEGRITY: {check['count']} checks, "
+          + ("ALL OK" if check["ok"] else f"{sum(1 for m in check['modules'] if not m['ok'])} FAILED"))
+    return 0 if check["ok"] else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="focux", description="THE FOCUX Agent")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -363,6 +390,13 @@ def main(argv: list[str] | None = None) -> int:
 
     doctor = sub.add_parser("doctor", help="THE FOCUX BRAIN diagnostics")
     doctor.set_defaults(func=cmd_doctor)
+
+    evolve = sub.add_parser("evolve", help="daily evolution cycle (analyze -> improve)")
+    evolve.add_argument("--workspace", default="default")
+    evolve.set_defaults(func=cmd_evolve)
+
+    modules = sub.add_parser("modules", help="modular system: organs + integrity check")
+    modules.set_defaults(func=cmd_modules)
 
     args = parser.parse_args(argv)
     return args.func(args)

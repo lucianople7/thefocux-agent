@@ -63,6 +63,10 @@ ROLES: dict[str, dict[str, object]] = {
         "pillar": "monetization", "action_class": ActionClass.MONEY,
         "cadence": "every 6h", "skill": "money-gate",
     },
+    "evolution": {
+        "pillar": "research", "action_class": ActionClass.READ,
+        "cadence": "daily", "skill": "focux-brain",
+    },
 }
 
 

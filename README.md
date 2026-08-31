@@ -61,11 +61,36 @@ la inmunidad y la mejora de THE FOCUX — sin cambiar su runtime:
 ```bash
 focux heartbeat --revenue 3000 --cost 2000 --cash 5000 --approvals 2
 # HEARTBEAT ... Tier: high | runway: 90.0d | Roles due: none | Healthy: yes
+#            ... Momentum: 12 runs · 83% success · 3 skills crystallized · WINNING
 
 focux doctor        # brain diagnostics (skills, gates, provider, survival, audit)
 focux attach ./neg  # agent-first workspace: AGENTS.md + metaskill + constitución
                     # + SQLite memory initialized + .env + .gitignore
+focux modules       # sistema modular: 16 órganos registrados + integrity check
+focux evolve        # evolución diaria: analiza lo ejecutado, propone mejoras
 ```
+
+## Evolución diaria — el brain mejora solo, todos los días
+
+`focux evolve` (rol `evolution`, cadencia daily) analiza lo ejecutado y
+propone mejoras CONCRETAS, nunca vibes:
+
+- **Fix** — procedimientos con fallos >= 2 y ratio >= 50% → propone rehacerlos
+- **Crystallize** — procedimientos probados (>= 80% éxito, >= 3 runs) → propone
+  cristalizarlos como skill DRAFT (humano promueve)
+- **Promote** — drafts esperando tu revisión
+
+Cada ciclo se registra en memoria (evento `evolution`) y en el audit
+append-only. Todo es propuesta: nada se auto-activa.
+
+## Sistema modular — cada órgano registrado y verificado
+
+`focux modules` lista los 16 órganos del brain (money-gate, constitution,
+soul, voice, content, memory, tools, eval, survival, heartbeat, selfmod,
+orchestrator, evolution, mcp-bridge, webui...) con versión semver y
+dependencias. `integrity_check` **prueba que cada módulo importa y que el
+falsification del money-gate sigue verde** — un módulo nuevo no puede romper
+el sistema inmune en silencio.
 
 ## Agent-first: el brain completo vía MCP
 
