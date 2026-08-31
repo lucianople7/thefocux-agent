@@ -108,6 +108,22 @@ class FocuxAgent:
         except Exception:  # noqa: BLE001 - memory is an enhancement, never fatal
             return ""
 
+    def _signals_block(self) -> str:
+        """Absorbed REAL data (github/huggingface/x) as facts for ANALIZAR.
+
+        Deterministic: every draft sees the latest absorbed signals, no
+        retrieval-keyword gate, no JSON truncation. Never fatal — ingestion
+        is an enhancement.
+        """
+        if self._memory is None:
+            return ""
+        try:
+            from .ingest import signals_block
+
+            return signals_block(self._memory, self._workspace)
+        except Exception:  # noqa: BLE001
+            return ""
+
     # -- the loop ------------------------------------------------------------
 
     def propose(
@@ -186,9 +202,9 @@ class FocuxAgent:
             if skill:
                 system_prompt += "\n\nApply this skill:\n" + skill.instructions()
         memory_block = self._memory_block(prompt)
-        user_content = (
-            f"{memory_block}\n\n{prompt}" if memory_block else prompt
-        )
+        signals = self._signals_block()
+        user_parts = [p for p in (memory_block, signals, prompt) if p]
+        user_content = "\n\n".join(user_parts)
         return self._llm.complete(
             [
                 {"role": "system", "content": system_prompt},

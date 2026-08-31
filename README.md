@@ -131,8 +131,12 @@ focux absorb --sources github,huggingface --query "ai agent" --workspace researc
   token **degrada con honestidad** (reporta "token required", jamás inventa datos)
 
 Todo se guarda como eventos de memoria (`absorb:github`, `absorb:huggingface`,
-`absorb:x:error`) para que el brain ANALICE con datos de verdad. La ingesta es
-solo lectura: ningún sensor ejecuta acciones, y el money-gate sigue mandando.
+`absorb:x:error`) para que el brain ANALICE con datos de verdad. Además, cada
+borrador que genera el agente recibe **automáticamente** un bloque
+`## Absorbed signals (REAL data)` con lo último absorbido (repo + estrellas,
+modelo + descargas) — sin keywords de recuperación, sin truncamiento: los
+datos reales son un hecho con el que el brain razona. La ingesta es solo
+lectura: ningún sensor ejecuta acciones, y el money-gate sigue mandando.
 
 ## Agent-first: el brain completo vía MCP
 

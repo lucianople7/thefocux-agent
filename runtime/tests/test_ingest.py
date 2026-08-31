@@ -16,9 +16,13 @@ from runtime.ingest import (  # noqa: E402
     XSensor,
     absorb,
     format_absorb,
+    recent_signals,
+    signals_block,
     store_results,
 )
 from runtime.memory import FocuxMemory  # noqa: E402
+from runtime.agent import FocuxAgent  # noqa: E402
+from policy.money_gate import ActionClass, MoneyGate, PolicyRule  # noqa: E402
 
 
 # --- sensors (mocked HTTP) ---------------------------------------------------
@@ -167,6 +171,97 @@ def test_sensors_sanitize_non_ascii(monkeypatch) -> None:  # type: ignore[no-unt
     text = format_absorb({"github": result})
     text.encode("ascii")  # must not raise
     assert "nuevo modelo ?? and ? rocket" in text
+
+
+# --- signals: absorbed data becomes FACTS for ANALIZAR -----------------------
+
+def test_recent_signals_from_memory(tmp_path: Path) -> None:
+    mem = FocuxMemory(tmp_path / "m.db")
+    store_results(
+        {
+            "github": SensorResult(
+                source="github", ok=True,
+                items=({"repo": "a/b", "stars": 500, "language": "Python",
+                        "description": "great tool"},),
+                fetched_at="now",
+            ),
+            "huggingface": SensorResult(
+                source="huggingface", ok=True,
+                items=({"type": "model", "id": "Qwen/Qwen3", "downloads": 100},),
+                fetched_at="now",
+            ),
+            "x": SensorResult(source="x", ok=False, error="token required",
+                              fetched_at="now"),
+        },
+        mem, workspace="biz",
+    )
+    lines = recent_signals(mem, "biz")
+    assert any("github: a/b (500 stars, Python) - great tool" == l for l in lines)
+    assert any("huggingface: model Qwen/Qwen3 (100 downloads)" == l for l in lines)
+    assert not any("token required" in l for l in lines)  # errors never a fact
+    for l in lines:
+        l.encode("ascii")  # console-safe
+    mem.close()
+
+
+def test_recent_signals_caps_per_source(tmp_path: Path) -> None:
+    mem = FocuxMemory(tmp_path / "m.db")
+    items = tuple({"repo": f"r/{i}", "stars": i, "language": "",
+                   "description": ""} for i in range(10))
+    store_results({"github": SensorResult(source="github", ok=True,
+                                          items=items, fetched_at="now")},
+                  mem, workspace="biz")
+    lines = recent_signals(mem, "biz", per_source=2)
+    assert len(lines) == 2
+    mem.close()
+
+
+def test_signals_block_markdown(tmp_path: Path) -> None:
+    mem = FocuxMemory(tmp_path / "m.db")
+    assert signals_block(mem, "empty") == ""  # nothing absorbed -> no block
+    store_results(
+        {"github": SensorResult(source="github", ok=True,
+                                items=({"repo": "x/y", "stars": 1, "language": "",
+                                        "description": ""},),
+                                fetched_at="now")},
+        mem, workspace="biz",
+    )
+    block = signals_block(mem, "biz")
+    assert block.startswith("## Absorbed signals (REAL data)")
+    assert "- github: x/y (1 stars, )" in block
+    mem.close()
+
+
+class _CaptureLLM:
+    """Stub LLM that records the last user content sent to it."""
+
+    def __init__(self) -> None:
+        self.last_user = ""
+
+    def complete(self, messages) -> str:  # type: ignore[no-untyped-def]
+        self.last_user = messages[-1]["content"]
+        return "draft"
+
+
+def test_agent_injects_signals_into_draft(tmp_path: Path) -> None:
+    """ANALIZAR deterministically receives absorbed REAL data as facts."""
+    mem = FocuxMemory(tmp_path / "m.db")
+    store_results(
+        {"github": SensorResult(source="github", ok=True,
+                                items=({"repo": "top/repo", "stars": 999,
+                                        "language": "Python",
+                                        "description": "signal!"},),
+                                fetched_at="now")},
+        mem, workspace="biz",
+    )
+    llm = _CaptureLLM()
+    gate = MoneyGate({ActionClass.READ: PolicyRule(
+        ActionClass.READ, max_amount=0.0, auto_approve=True)})
+    agent = FocuxAgent(llm=llm, gate=gate, memory=mem, workspace="biz")
+    agent.draft("analyze the niche")  # no retrieval keyword needed
+    assert "## Absorbed signals (REAL data)" in llm.last_user
+    assert "github: top/repo (999 stars, Python) - signal!" in llm.last_user
+    mem.close()
 
 
 # --- LIVE API test (real network; skipped if offline) ------------------------

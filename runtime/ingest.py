@@ -255,3 +255,58 @@ def format_absorb(results: dict[str, SensorResult]) -> str:
             elif source == "x":
                 lines.append(_ascii(f"  {item.get('text', '')[:100]}", 120))
     return "\n".join(lines)
+
+
+def recent_signals(
+    memory,
+    workspace: str = "default",
+    *,
+    per_source: int = 3,
+    max_events: int = 100,
+) -> list[str]:
+    """Latest absorbed REAL data as compact fact lines for ANALIZAR.
+
+    Reads the newest ``absorb:<source>`` memory events (errors excluded) and
+    formats them deterministically — no retrieval keyword needed, no JSON
+    truncation. This is the concrete path that makes absorbed data a FACT
+    the brain reasons with.
+    """
+    lines: list[str] = []
+    counts: dict[str, int] = {}
+    for event in memory.recent_events(workspace, limit=max_events):
+        kind: str = event.kind
+        if not kind.startswith("absorb:") or kind.endswith(":error"):
+            continue
+        source = kind.split(":", 1)[1]
+        if counts.get(source, 0) >= per_source:
+            continue
+        for item in event.data.get("items", []):
+            if counts.get(source, 0) >= per_source:
+                break
+            if source == "github":
+                lines.append(_ascii(
+                    f"github: {item.get('repo', '')} "
+                    f"({item.get('stars', 0)} stars, {item.get('language', '')}) "
+                    f"- {item.get('description', '')[:70]}",
+                    180,
+                ))
+            elif source == "huggingface":
+                lines.append(_ascii(
+                    f"huggingface: {item.get('type', '')} {item.get('id', '')} "
+                    f"({item.get('downloads', 0)} downloads)",
+                    180,
+                ))
+            elif source == "x":
+                lines.append(_ascii(f"x: {item.get('text', '')[:100]}", 140))
+            counts[source] = counts.get(source, 0) + 1
+    return lines
+
+
+def signals_block(memory, workspace: str = "default") -> str:
+    """Markdown block with absorbed signals; empty when nothing absorbed."""
+    signals = recent_signals(memory, workspace)
+    if not signals:
+        return ""
+    return "## Absorbed signals (REAL data)\n" + "\n".join(
+        f"- {s}" for s in signals
+    )
