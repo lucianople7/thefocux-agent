@@ -10,6 +10,13 @@ negocio es su núcleo nativo — código Python puro, determinista, testeable �
 que se conecta a **cualquier LLM**, acepta **cualquier skill de agente**, y
 está preparado para **el mundo real** (gates humanos, receipts, proposal-only).
 
+**25 skills**: 17 de negocio (voz, contenido, commerce, monetización,
+research, CLI) + **8 de ingeniería de producción** (absorbidos de
+[addyosmani/agent-skills](https://github.com/addyosmani/agent-skills), MIT):
+constraint-driven, doubt-driven, spec-driven, TDD, code-review, security,
+observability, git-workflow — la disciplina spec→plan→build→test→review→ship
+que hace production-grade lo que el agente construye.
+
 </div>
 
 ---
@@ -98,7 +105,7 @@ thefocux-agent/
 │   ├── focux_content.py   #   content matrix + hook generator
 │   ├── focux_cli.py       #   capa CLI agente-nativa (gating)
 │   └── tests/             #   90+ tests, falsification verde
-├── skills/                # 17 SKILL.md (formato open Agent Skills)
+├── skills/                # 25 SKILL.md (17 negocio + 8 ingeniería de producción)
 ├── soul/SOUL.md.template  # identidad evolutiva (validada)
 ├── tools/skill_validator.py
 ├── constitution.md        # las 3 leyes (docs)
