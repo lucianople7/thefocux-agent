@@ -58,9 +58,28 @@ ANALIZAR → PLANIFICAR → EJECUTAR → MEDIR → MEJORAR
 ```bash
 git clone https://github.com/lucianople7/thefocux-agent.git
 cd thefocux-agent
-python -m pytest -q                 # 76+ tests: money-gate, constitution, soul, voice, content, cli, agnosticism
+python -m pytest -q                 # 90+ tests: money-gate, constitution, soul, voice, content, cli, runtime
 python tools/skill_validator.py     # 17 skills, all valid
 ```
+
+## Runtime propio (sin depender de ningún shell)
+
+THE FOCUX no necesita OpenClaw, CowAgent ni ningún runtime externo: se
+**sostiene sobre su propio `runtime/`** — cero dependencias de terceros para
+inferencia (solo `urllib`), con el money-gate y la constitución siempre en el
+camino.
+
+```bash
+python -m focux skills                 # 17 skills cargados
+python -m focux run "publish a post about AI" --pillar content   # gate: REVIEW
+python -m focux repl                   # sesión interactiva con gates
+python -m focux run "analizar el nicho" --pillar research --draft # ALLOW + draft
+```
+
+Provider (agnóstico, por env):
+- `FOCUX_MODEL` + `FOCUX_BASE_URL` (+ `FOCUX_API_KEY`) → cualquier endpoint
+  OpenAI-compatible (Qwen Token Plan, Groq, Mistral, OpenRouter, vLLM...)
+- Sin env → Ollama local sin llave (`http://localhost:11434`)
 
 Monta los skills en cualquier shell agente-nativo apuntando su `skills.dirs`
 (o workspace skills) a `skills/`.
@@ -69,6 +88,8 @@ Monta los skills en cualquier shell agente-nativo apuntando su `skills.dirs`
 
 ```
 thefocux-agent/
+├── focux.py               # CLI: run | repl | skills
+├── runtime/               # runtime propio: agente, LLM, skills (sin shell)
 ├── policy/                # DNA determinista, NO LLM en rutas de decisión
 │   ├── money_gate.py      #   approval boundary (ALLOW/REVIEW/DENY)
 │   ├── constitution.py    #   3 leyes inmutables como código
@@ -76,7 +97,7 @@ thefocux-agent/
 │   ├── focux_voice.py     #   voice profile (entrevista + absence signals)
 │   ├── focux_content.py   #   content matrix + hook generator
 │   ├── focux_cli.py       #   capa CLI agente-nativa (gating)
-│   └── tests/             #   76+ tests, falsification verde
+│   └── tests/             #   90+ tests, falsification verde
 ├── skills/                # 17 SKILL.md (formato open Agent Skills)
 ├── soul/SOUL.md.template  # identidad evolutiva (validada)
 ├── tools/skill_validator.py
