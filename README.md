@@ -72,6 +72,20 @@ python -m pytest -q                 # 90+ tests: money-gate, constitution, soul,
 python tools/skill_validator.py     # 17 skills, all valid
 ```
 
+## Consola web (tu logo, cero dependencias)
+
+`webui.py` — la consola local del agente con **tu logo THE FOCUX**, hecha solo
+con la stdlib de Python (http.server, sin npm, sin Docker, sin framework):
+
+```bash
+python webui.py --port 47822     # abre http://127.0.0.1:47822
+```
+
+Paneles: chat con el agente (gateado), herramientas con **tarjetas de
+aprobación** (aprobar/denegar), memoria por workspace, drafts cristalizados
+(promover con un clic), skills y estado. El agente "de serie": logo + WebUI +
+CLI (`python -m focux`), todo MIT, todo local.
+
 ## Runtime propio (sin depender de ningún shell)
 
 THE FOCUX no necesita OpenClaw, CowAgent ni ningún runtime externo: se
