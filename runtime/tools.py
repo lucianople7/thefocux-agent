@@ -158,20 +158,30 @@ class ToolRegistry:
         *,
         tainted: bool = False,
         claims: tuple[Claim, ...] = (),
+        dry_run: bool = False,
     ) -> ToolResult:
-        """Gate then (maybe) execute. NEVER executes a DENY; REVIEW is a card."""
+        """Gate then (maybe) execute. NEVER executes a DENY; REVIEW is a card.
+
+        ``dry_run`` (OpenBot pattern): decide and record, but let the tool
+        run regardless — for tuning policy against real traffic before it
+        refuses anyone. The decision is still returned so the caller can log
+        it. Secrets in ``args`` are redacted from every output path.
+        """
+        from .redact import redact_mapping
+
         spec = self._specs.get(tool_name)
         if spec is None:
             return ToolResult(False, "DENY", f"unknown tool: {tool_name}")
+        safe_args = redact_mapping(dict(args))  # secrets never enter records
         action = Action(
             action_class=spec.action_class,
             amount=float(args.get("amount", 0.0) or 0.0),
             target=f"tool:{tool_name}",
-            idempotency_key=f"tool:{tool_name}:{str(args)[:80]}",
+            idempotency_key=f"tool:{tool_name}:{str(safe_args)[:80]}",
         )
         decision = self._gate.decide(action, tainted=tainted)
         verdicts = apply_constitution(
-            self._gate, action, content=str(args)[:200], claims=claims,
+            self._gate, action, content=str(safe_args)[:200], claims=claims,
             tainted=tainted,
         )
         if law1_blocks(verdicts) or decision is Decision.DENY:
@@ -179,7 +189,7 @@ class ToolRegistry:
                 False, "DENY",
                 "constitution Law I or money-gate DENY: tool must not run",
             )
-        if decision is Decision.REVIEW:
+        if decision is Decision.REVIEW and not dry_run:
             return ToolResult(
                 True, "REVIEW",
                 "human approval required before this tool may run",
@@ -196,6 +206,11 @@ class ToolRegistry:
             output = handler(args)
         except Exception as exc:  # noqa: BLE001 - report, never crash the loop
             return ToolResult(False, "DENY", f"{tool_name} failed: {type(exc).__name__}: {exc}")
+        if dry_run:
+            return ToolResult(
+                True, "ALLOW",
+                f"[DRY-RUN] would have been {decision.value}: {output}",
+            )
         return ToolResult(True, "ALLOW", output)
 
     # -- built-in tools (do_<name> convention) --------------------------------

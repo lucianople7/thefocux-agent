@@ -87,7 +87,10 @@ dominios (billing, content, research). Y el bucle **MEJORAR** cristaliza lo
 ejecutado: `agent.learn()` registra el procedimiento y escribe la skill en
 `skills-draft/` como DRAFT — el release gate (`runtime/eval.py`) la revisa
 (checks deterministas + LLM-judge opcional) y **solo un humano la promueve**:
-`python -m focux promote <name>`.
+`python -m focux promote <name>`. Higiene de auditoría (patrón OpenBot): los
+secrets **nunca entran en receipts** (`runtime/redact.py` redacta keys,
+tokens, prompts y args) y el **dry-run mode** decide-y-registra sin bloquear
+para afinar policy contra tráfico real antes de exigirla.
 
 ```bash
 python -m focux skills                 # 56 skills cargados
