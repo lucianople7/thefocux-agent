@@ -206,17 +206,42 @@ class FocuxAgent:
     ) -> dict[str, object]:
         """Crystallize an executed path into a DRAFT skill (human-gated).
 
-        Records the procedure in memory (success/fail counter) and writes a
-        skill to ``skills-draft/`` AFTER the release gate passes. A DRAFT is
-        never auto-activated: the human promotes it (``promote_skill``). A
-        REJECT or HOLD leaves the procedure in memory but writes no skill.
+        Records the procedure in memory (success/fail counter), writes a
+        skill to ``skills-draft/`` AFTER the release gate passes, and logs
+        the modification to the append-only self-mod audit. A DRAFT is never
+        auto-activated: the human promotes it (``promote_skill``). Protected
+        files are never touched; rate limits prevent runaway crystallization.
         """
+        from .selfmod import PROTECTED_PATHS, SelfModLog, is_protected
+
+        if is_protected(name):
+            return {"learned": False, "reason": f"protected path: {name}"}
+
+        selfmod = SelfModLog()
+        # rate limit: max 10 crystallizations/hour by default
+        from .selfmod import RateLimiter
+
+        limiter = getattr(self, "_learn_limiter", None)
+        if limiter is None:
+            limiter = RateLimiter(window_seconds=3600, max_ops=10)
+            self._learn_limiter = limiter
+        import time
+
+        if not limiter.allow(time.time()):
+            return {
+                "learned": False,
+                "reason": "self-mod rate limit hit (10/hour); human review required",
+            }
+
         if self._memory is not None:
             self._memory.learn_procedure(self._workspace, name, steps)
             self._memory.record_outcome(
                 self._workspace, name, success=outcome_ok
             )
         if self._drafts_dir is None:
+            selfmod.append(
+                "procedure_learned", f"{name} recorded in memory (no drafts dir)",
+            )
             return {"learned": False, "reason": "no drafts_dir configured"}
 
         body = self._render_skill_body(name, steps)
@@ -227,6 +252,11 @@ class FocuxAgent:
             body=body,
         )
         verdict: GateVerdict = release_gate(skill_md, judge=self._judge)
+        selfmod.append(
+            "skill_crystallized",
+            f"{name} crystallized as DRAFT (verdict {verdict.verdict})",
+            data={"draft": str(skill_md), "verdict": verdict.verdict},
+        )
         if not verdict.passed:
             # Keep the draft on disk for inspection, but report the verdict.
             return {

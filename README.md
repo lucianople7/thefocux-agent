@@ -30,14 +30,43 @@ irm https://raw.githubusercontent.com/lucianople7/thefocux-agent/main/install.ps
 curl -fsSL https://raw.githubusercontent.com/lucianople7/thefocux-agent/main/install.sh | bash
 ```
 
-Instala el CLI global `focux` + `focux-web`, 56 skills y 9 roles. Luego:
-`Copy-Item .env.example .env` y añade tu API key (DeepSeek, Qwen, OpenAI, o
-`auto` vía OmniRoute con free tiers).
+Instala el CLI global `focux` + `focux-web`, 57 skills, 9 roles y el BRAIN.
+Luego: `Copy-Item .env.example .env` y añade tu API key (DeepSeek, Qwen,
+OpenAI, o `auto` vía OmniRoute con free tiers).
 
-**56 skills**: **17 de contenido** (el sistema completo de
+## THE FOCUX BRAIN — el mejorador de agentes y negocios
+
+No solo un agente: una **capa de gobierno** que cualquier agente adopta para
+cualquier negocio. Monta el brain en un directorio con un comando:
+
+```bash
+focux attach ./mi-negocio     # AGENTS.md + metaskill + constitución + memoria
+```
+
+Cualquier agente (Codex, Claude Code, CowAgent, el futuro) que trabaje en ese
+directorio lee `AGENTS.md` + `skills/focux-brain` y opera con la identidad,
+la inmunidad y la mejora de THE FOCUX — sin cambiar su runtime:
+
+- **Identidad** — `AGENTS.md` + `focux-brain/SKILL.md`: quién eres, qué
+  consigues, cómo (el bucle), qué jamás.
+- **Inmune** — money-gate + constitución (3 leyes) + falsification.
+- **Memoria** — SQLite (hechos, eventos, procedimientos) compartible.
+- **Mejora** — cristalización con release gate + **audit append-only + rate
+  limits** (`runtime/selfmod.py`).
+- **Supervivencia** — **tiers del negocio** (`runtime/survival.py`): runway
+  determina el esfuerzo (modelos/roles/ritmo), **nunca la autorización**.
+- **Vigilancia** — **heartbeat** (`runtime/heartbeat.py`): tier + roles due +
+  aprobaciones pendientes.
+
+```bash
+focux heartbeat --revenue 3000 --cost 2000 --cash 5000 --approvals 2
+# HEARTBEAT ... Tier: high | runway: 90.0d | Roles due: none | Healthy: yes
+```
+
+**57 skills**: **17 de contenido** (el sistema completo de
 [Charlie Hills social-media-skills](https://github.com/charlie947/social-media-skills),
-MIT — voice, posts, carousels, reels, thumbnails, scoring, analytics) + **14 de
-negocio** (commerce, monetización, research, CLI, gates) + **25 de ingeniería de
+MIT — voice, posts, carousels, reels, thumbnails, scoring, analytics) + **15 de
+negocio** (commerce, monetización, research, CLI, gates, **focux-brain**) + **25 de ingeniería de
 producción** ([addyosmani/agent-skills](https://github.com/addyosmani/agent-skills),
 MIT): spec→plan→build→test→review→ship, frontend, APIs, CI/CD, seguridad,
 observabilidad, debugging, deploy, ADRs. THE FOCUX crea contenido con una voz

@@ -166,6 +166,72 @@ def cmd_agents(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_attach(args: argparse.Namespace) -> int:
+    """Mount THE FOCUX BRAIN on any agent/business directory."""
+    import shutil
+
+    target = Path(args.dir).resolve()
+    target.mkdir(parents=True, exist_ok=True)
+    mounted: list[str] = []
+
+    # AGENTS.md (identity contract)
+    agents_md = target / "AGENTS.md"
+    if not agents_md.exists():
+        shutil.copy2(REPO_ROOT / "AGENTS.md", agents_md)
+        mounted.append("AGENTS.md")
+
+    # focux-brain metaskill (the identity the agent loads)
+    brain_skill = target / ".agents" / "skills" / "focux-brain"
+    if not brain_skill.exists():
+        brain_skill.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(
+            REPO_ROOT / "skills" / "focux-brain" / "SKILL.md",
+            brain_skill / "SKILL.md",
+        )
+        mounted.append(".agents/skills/focux-brain/SKILL.md")
+
+    # constitution (immutable laws)
+    constitution = target / "constitution.md"
+    if not constitution.exists():
+        shutil.copy2(REPO_ROOT / "constitution.md", constitution)
+        mounted.append("constitution.md")
+
+    # memory dir (shared business memory)
+    memory_dir = target / "memory"
+    if not memory_dir.exists():
+        memory_dir.mkdir(parents=True, exist_ok=True)
+        (memory_dir / "README.md").write_text(
+            "FOCUX BRAIN shared memory: metrics.md, decisions.md, receipts/, "
+            "focux.db (SQLite), selfmod.jsonl (audit).",
+            encoding="utf-8",
+        )
+        mounted.append("memory/")
+
+    if not mounted:
+        print("already attached (AGENTS.md, brain skill, constitution, memory present)")
+        return 0
+    print(f"THE FOCUX BRAIN attached to {target}:")
+    for item in mounted:
+        print(f"  + {item}")
+    print("\nNow any agent in that directory reads AGENTS.md + the brain skill.")
+    return 0
+
+
+def cmd_heartbeat(args: argparse.Namespace) -> int:
+    """Heartbeat report: survival tier + roles due + approvals."""
+    from runtime.heartbeat import format_report, heartbeat
+    from runtime.survival import BusinessFinances
+
+    finances = BusinessFinances(
+        revenue=args.revenue,
+        operating_cost=args.cost,
+        cash=args.cash,
+    )
+    report = heartbeat(finances, pending_approvals=args.approvals)
+    print(format_report(report))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="focux", description="THE FOCUX Agent")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -197,6 +263,17 @@ def main(argv: list[str] | None = None) -> int:
     agents.add_argument("--run", default="", help="run one role (gated)")
     agents.add_argument("--objective", default="", help="objective for --run")
     agents.set_defaults(func=cmd_agents)
+
+    attach = sub.add_parser("attach", help="mount THE FOCUX BRAIN on any agent/business dir")
+    attach.add_argument("dir", help="target directory")
+    attach.set_defaults(func=cmd_attach)
+
+    hb = sub.add_parser("heartbeat", help="survival tier + roles due + approvals")
+    hb.add_argument("--revenue", type=float, default=0.0)
+    hb.add_argument("--cost", type=float, default=0.0)
+    hb.add_argument("--cash", type=float, default=0.0)
+    hb.add_argument("--approvals", type=int, default=0)
+    hb.set_defaults(func=cmd_heartbeat)
 
     args = parser.parse_args(argv)
     return args.func(args)
