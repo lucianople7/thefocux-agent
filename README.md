@@ -61,7 +61,25 @@ la inmunidad y la mejora de THE FOCUX — sin cambiar su runtime:
 ```bash
 focux heartbeat --revenue 3000 --cost 2000 --cash 5000 --approvals 2
 # HEARTBEAT ... Tier: high | runway: 90.0d | Roles due: none | Healthy: yes
+
+focux doctor        # brain diagnostics (skills, gates, provider, survival, audit)
+focux attach ./neg  # agent-first workspace: AGENTS.md + metaskill + constitución
+                    # + SQLite memory initialized + .env + .gitignore
 ```
+
+## Agent-first: el brain completo vía MCP
+
+Cualquier agente (Codex, Claude Code, Cursor...) consulta el brain entero como
+tools MCP (`mcp_bridge.py`, registrado en Codex como `thefocux`):
+
+- `focux_gate` — decide ALLOW/REVIEW/DENY antes de actuar
+- `focux_survival` — tier del negocio (esfuerzo, nunca autorización)
+- `focux_heartbeat` — tier + roles due + aprobaciones pendientes
+- `focux_roles` — los 9 roles con horarios
+- `focux_memory` — hechos, eventos, procedimientos (SQLite compartido)
+- `focux_learn` — cristaliza procedimientos como DRAFT (humano promueve)
+- `focux_selfmod` — auditoría append-only de auto-modificaciones
+- `focux_redact` — secrets nunca en receipts
 
 **57 skills**: **17 de contenido** (el sistema completo de
 [Charlie Hills social-media-skills](https://github.com/charlie947/social-media-skills),

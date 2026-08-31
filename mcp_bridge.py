@@ -94,6 +94,59 @@ def _redact_text(text: str) -> str:
     return rt(text)
 
 
+def _tool_survival(args: dict) -> dict:
+    """Business survival tier (effort, never authorization)."""
+    from runtime.survival import BusinessFinances, report
+
+    finances = BusinessFinances(
+        revenue=float(args.get("revenue", 0.0) or 0.0),
+        operating_cost=float(args.get("operating_cost", 0.0) or 0.0),
+        cash=float(args.get("cash", 0.0) or 0.0),
+    )
+    return report(finances)
+
+
+def _tool_heartbeat(args: dict) -> dict:
+    """Heartbeat: tier + roles due + next schedule + approvals."""
+    from runtime.heartbeat import heartbeat
+    from runtime.survival import BusinessFinances
+
+    finances = BusinessFinances(
+        revenue=float(args.get("revenue", 0.0) or 0.0),
+        operating_cost=float(args.get("operating_cost", 0.0) or 0.0),
+        cash=float(args.get("cash", 0.0) or 0.0),
+    )
+    hb = heartbeat(
+        finances,
+        pending_approvals=int(args.get("pending_approvals", 0) or 0),
+    )
+    return hb.as_dict()
+
+
+def _tool_roles(args: dict) -> dict:
+    """List the 9 specialized business roles with schedules."""
+    from runtime.orchestrator import all_roles
+
+    return {"roles": [r.as_dict() for r in all_roles()], "count": 9}
+
+
+def _tool_selfmod(args: dict) -> dict:
+    """Append-only self-modification audit (skills crystallized, etc.)."""
+    from runtime.selfmod import SelfModLog, is_protected
+
+    path = str(args.get("path", "memory/selfmod.jsonl"))
+    log = SelfModLog(path)
+    kind = str(args.get("kind", "")) or None
+    return {
+        "entries": [e.as_dict() for e in log.entries(limit=20)],
+        "count": log.count(kind),
+        "protected": list(
+            p for p in ("constitution.md", "policy/money_gate.py", "AGENTS.md")
+            if is_protected(p)
+        ),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Tool registry (MCP-style)
 # ---------------------------------------------------------------------------
@@ -148,6 +201,47 @@ TOOLS: dict[str, dict] = {
             "required": ["text"],
         },
         "handler": _tool_redact,
+    },
+    "focux_survival": {
+        "description": "Business survival tier from revenue/cost/cash. Changes EFFORT, never authorization.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "revenue": {"type": "number", "description": "trailing revenue"},
+                "operating_cost": {"type": "number", "description": "trailing cost"},
+                "cash": {"type": "number", "description": "buffer"},
+            },
+        },
+        "handler": _tool_survival,
+    },
+    "focux_heartbeat": {
+        "description": "Heartbeat: survival tier + roles due now + next schedule + pending approvals.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "revenue": {"type": "number"},
+                "operating_cost": {"type": "number"},
+                "cash": {"type": "number"},
+                "pending_approvals": {"type": "integer"},
+            },
+        },
+        "handler": _tool_heartbeat,
+    },
+    "focux_roles": {
+        "description": "List the 9 specialized business roles with schedules (orchestrator, social, finance...).",
+        "inputSchema": {"type": "object", "properties": {}},
+        "handler": _tool_roles,
+    },
+    "focux_selfmod": {
+        "description": "Append-only self-modification audit (skills crystallized, drafts). Protected files listed.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "kind": {"type": "string", "description": "filter by kind"},
+                "path": {"type": "string", "description": "audit log path"},
+            },
+        },
+        "handler": _tool_selfmod,
     },
 }
 

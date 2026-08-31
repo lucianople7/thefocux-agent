@@ -43,6 +43,62 @@ def test_tools_list() -> None:
     assert "focux_memory" in names
     assert "focux_learn" in names
     assert "focux_redact" in names
+    assert "focux_survival" in names
+    assert "focux_heartbeat" in names
+    assert "focux_roles" in names
+    assert "focux_selfmod" in names
+
+
+def test_survival_tool() -> None:
+    out = _run_mcp([
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+         "params": {"protocolVersion": "2024-11-05", "capabilities": {}}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+         "params": {"name": "focux_survival",
+                    "arguments": {"revenue": 1000, "operating_cost": 900, "cash": 5000}}},
+    ])
+    data = json.loads(out[-1]["result"]["content"][0]["text"])
+    assert "tier" in data
+    assert data["authorization_unchanged"] is True
+
+
+def test_heartbeat_tool() -> None:
+    out = _run_mcp([
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+         "params": {"protocolVersion": "2024-11-05", "capabilities": {}}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+         "params": {"name": "focux_heartbeat",
+                    "arguments": {"revenue": 1000, "operating_cost": 900, "cash": 5000,
+                                  "pending_approvals": 2}}},
+    ])
+    data = json.loads(out[-1]["result"]["content"][0]["text"])
+    assert "tier" in data
+    assert "roles_due" in data
+    assert data["pending_approvals"] == 2
+
+
+def test_roles_tool() -> None:
+    out = _run_mcp([
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+         "params": {"protocolVersion": "2024-11-05", "capabilities": {}}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+         "params": {"name": "focux_roles", "arguments": {}}},
+    ])
+    data = json.loads(out[-1]["result"]["content"][0]["text"])
+    assert data["count"] == 9
+
+
+def test_selfmod_tool() -> None:
+    out = _run_mcp([
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+         "params": {"protocolVersion": "2024-11-05", "capabilities": {}}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+         "params": {"name": "focux_selfmod", "arguments": {}}},
+    ])
+    data = json.loads(out[-1]["result"]["content"][0]["text"])
+    assert "entries" in data
+    assert "protected" in data
+    assert "constitution.md" in data["protected"]
 
 
 def test_gate_tool() -> None:

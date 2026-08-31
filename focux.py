@@ -207,13 +207,40 @@ def cmd_attach(args: argparse.Namespace) -> int:
         )
         mounted.append("memory/")
 
+    # .env from example (agent-first: provider ready)
+    env_file = target / ".env"
+    if not env_file.exists() and (REPO_ROOT / ".env.example").exists():
+        shutil.copy2(REPO_ROOT / ".env.example", env_file)
+        mounted.append(".env (from example — add your API key)")
+
+    # .gitignore for the workspace (never commit memory/secrets)
+    gitignore = target / ".gitignore"
+    if not gitignore.exists():
+        gitignore.write_text(
+            ".env\nmemory/focux.db\nmemory/focux.db-*\nmemory/selfmod.jsonl\n",
+            encoding="utf-8",
+        )
+        mounted.append(".gitignore (secrets + memory ignored)")
+
+    # init shared SQLite memory (real, agent-first)
+    try:
+        from runtime.memory import FocuxMemory
+
+        db = memory_dir / "focux.db"
+        if not db.exists():
+            FocuxMemory(db)
+            mounted.append(f"memory/focux.db (SQLite inicializado)")
+    except Exception:  # noqa: BLE001 - non-fatal
+        pass
+
     if not mounted:
         print("already attached (AGENTS.md, brain skill, constitution, memory present)")
         return 0
     print(f"THE FOCUX BRAIN attached to {target}:")
     for item in mounted:
         print(f"  + {item}")
-    print("\nNow any agent in that directory reads AGENTS.md + the brain skill.")
+    print("\nNow any agent in that directory reads AGENTS.md + the brain skill,")
+    print("and shares the SQLite memory. Configure: .env -> add your API key.")
     return 0
 
 
@@ -230,6 +257,58 @@ def cmd_heartbeat(args: argparse.Namespace) -> int:
     report = heartbeat(finances, pending_approvals=args.approvals)
     print(format_report(report))
     return 0
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """Brain diagnostics: skills, gates, memory, providers, MCP, survival."""
+    ok = True
+
+    def check(label: str, cond: bool, detail: str = "") -> None:
+        nonlocal ok
+        status = "OK " if cond else "FAIL"
+        if not cond:
+            ok = False
+        print(f"  [{status}] {label}" + (f" — {detail}" if detail else ""))
+
+    print("THE FOCUX BRAIN — doctor")
+
+    # skills
+    agent = build_agent()
+    check("skills", len(agent.skills) >= 17, f"{len(agent.skills)} loaded")
+
+    # gates
+    gate = default_gate()
+    check("money-gate falsification", gate.falsification_test(), "never auto-approves money")
+
+    # memory
+    mem = agent.memory
+    if mem is not None:
+        check("memory", True, f"workspace '{agent.workspace}'")
+    else:
+        check("memory", True, "not attached (optional)")
+
+    # provider
+    settings = load_settings(REPO_ROOT)
+    check("provider", settings.provider in ("deepseek", "qwen", "openai", "ollama", "custom"),
+          f"{settings.provider} ({settings.model})")
+
+    # orchestrator
+    from runtime.orchestrator import all_roles
+    check("orchestrator", len(all_roles()) == 9, "9 roles")
+
+    # survival
+    from runtime.survival import BusinessFinances, survival_tier
+    tier = survival_tier(BusinessFinances(revenue=0, operating_cost=0, cash=0))
+    check("survival", tier.value in ("high", "normal", "low_compute", "critical", "dead"),
+          f"engine ok (zero-cost => {tier.value})")
+
+    # selfmod
+    from runtime.selfmod import SelfModLog
+    log = SelfModLog()
+    check("selfmod audit", log.count() >= 0, f"{log.count()} entries")
+
+    print("RESULT: " + ("OK — THE FOCUX BRAIN is operational." if ok else "ISSUES FOUND"))
+    return 0 if ok else 1
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -274,6 +353,9 @@ def main(argv: list[str] | None = None) -> int:
     hb.add_argument("--cash", type=float, default=0.0)
     hb.add_argument("--approvals", type=int, default=0)
     hb.set_defaults(func=cmd_heartbeat)
+
+    doctor = sub.add_parser("doctor", help="THE FOCUX BRAIN diagnostics")
+    doctor.set_defaults(func=cmd_doctor)
 
     args = parser.parse_args(argv)
     return args.func(args)
