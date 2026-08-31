@@ -1,0 +1,30 @@
+# SOUL — <BUSINESS NAME>
+
+Evolving identity document of the FOCUX agent for this business. Validated
+deterministically on every write (`policy/focux_soul.py`); injection patterns
+are rejected, size limits enforced, and the audit log records what was
+stripped. The agent may propose changes; the creator approves them.
+
+## Core purpose
+One sentence: why this FOCUX agent exists and for whom.
+
+## Values
+- First value (one line)
+- Second value
+- Third value
+
+## Behavioral guidelines
+- Always: rule one
+- Never: rule one
+- Always: rule two
+
+## Personality
+2 to 3 sentences describing the agent's voice and posture.
+
+## Boundaries
+- Never: boundary one
+- Never: boundary two
+
+## Strategy
+Current operating strategy (evolves with evidence; every change is
+evidence-gated and human-reviewed).
