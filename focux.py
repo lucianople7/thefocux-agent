@@ -23,6 +23,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from policy.money_gate import ActionClass, MoneyGate, PolicyRule  # noqa: E402
 from runtime.agent import FocuxAgent  # noqa: E402
+from runtime.config import load_settings  # noqa: E402
 from runtime.llm import LLMClient, OllamaClient, OpenAICompatClient  # noqa: E402
 from runtime.skills import load_skills  # noqa: E402
 
@@ -44,16 +45,14 @@ def default_gate() -> MoneyGate:
 
 
 def build_llm() -> LLMClient:
-    model = os.environ.get("FOCUX_MODEL", "")
-    base_url = os.environ.get("FOCUX_BASE_URL", "")
-    api_key = os.environ.get("FOCUX_API_KEY", "")
-    if model and base_url:
-        return OpenAICompatClient(
-            base_url=base_url, api_key=api_key or "", model=model
-        )
-    if os.environ.get("FOCUX_OLLAMA") or not (model or base_url):
-        return OllamaClient(model=os.environ.get("FOCUX_OLLAMA_MODEL", "qwen3.5"))
-    return OllamaClient()
+    settings = load_settings(REPO_ROOT)
+    if settings.provider == "ollama" and settings.keyless:
+        return OllamaClient(model=settings.model)
+    return OpenAICompatClient(
+        base_url=settings.base_url,
+        api_key=settings.api_key,
+        model=settings.model,
+    )
 
 
 def build_agent() -> FocuxAgent:

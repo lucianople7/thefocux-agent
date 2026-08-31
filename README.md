@@ -113,10 +113,21 @@ python -m focux repl                   # sesión interactiva con gates
 python -m focux run "analizar el nicho" --pillar research --draft # ALLOW + draft
 ```
 
-Provider (agnóstico, por env):
-- `FOCUX_MODEL` + `FOCUX_BASE_URL` (+ `FOCUX_API_KEY`) → cualquier endpoint
-  OpenAI-compatible (Qwen Token Plan, Groq, Mistral, OpenRouter, vLLM...)
-- Sin env → Ollama local sin llave (`http://localhost:11434`)
+Provider (agnóstico, por env o `.env` — copia `.env.example`):
+
+```powershell
+# DeepSeek — un solo paso (solo tu key)
+$env:FOCUX_PROVIDER = "deepseek"
+$env:FOCUX_API_KEY  = "sk-..."          # tu key real
+python -m focux repl                     # ¡ya habla con DeepSeek!
+
+# Qwen Token Plan / OpenAI / local
+$env:FOCUX_PROVIDER = "qwen"            # o "openai", "ollama" (sin llave)
+```
+
+Presets: `deepseek` (deepseek-chat/reasoner), `qwen` (Token Plan), `openai`,
+`ollama` (local keyless). O custom: `FOCUX_MODEL` + `FOCUX_BASE_URL`.
+La key se lee de env/`.env` — nunca del repo, nunca en receipts (redact).
 
 Monta los skills en cualquier shell agente-nativo apuntando su `skills.dirs`
 (o workspace skills) a `skills/`.
