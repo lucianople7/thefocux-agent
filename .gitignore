@@ -3,3 +3,10 @@ __pycache__/
 .pytest_cache/
 .venv/
 *.egg-info/
+
+# Secrets — never commit
+.env
+.env.local
+.env.*.local
+memory/focux.db
+memory/focux.db-*
