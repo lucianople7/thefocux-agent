@@ -2,6 +2,12 @@
 
 # THE FOCUX Agent
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-e7c46e?style=for-the-badge&labelColor=242424)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-174%20passed-3ddc84?style=for-the-badge&labelColor=242424)]()
+[![CI](https://github.com/lucianople7/thefocux-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/lucianople7/thefocux-agent/actions)
+[![Skills](https://img.shields.io/badge/skills-56-6ea8fe?style=for-the-badge&labelColor=242424)]()
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&labelColor=242424&logo=python&logoColor=white)]()
+
 **El superagente de negocio — redes sociales, ecommerce, búsqueda de
 oportunidades, monetización y creación de contenido.**
 
@@ -9,6 +15,24 @@ No un agente con plugins: un agente **construido con esa mentalidad**. El
 negocio es su núcleo nativo — código Python puro, determinista, testeable —
 que se conecta a **cualquier LLM**, acepta **cualquier skill de agente**, y
 está preparado para **el mundo real** (gates humanos, receipts, proposal-only).
+
+</div>
+
+## Instalación (1 comando)
+
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/lucianople7/thefocux-agent/main/install.ps1 | iex
+```
+
+```bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/lucianople7/thefocux-agent/main/install.sh | bash
+```
+
+Instala el CLI global `focux` + `focux-web`, 56 skills y 9 roles. Luego:
+`Copy-Item .env.example .env` y añade tu API key (DeepSeek, Qwen, OpenAI, o
+`auto` vía OmniRoute con free tiers).
 
 **56 skills**: **17 de contenido** (el sistema completo de
 [Charlie Hills social-media-skills](https://github.com/charlie947/social-media-skills),
