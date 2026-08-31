@@ -83,7 +83,11 @@ tarjeta de aprobación humana. Nada se ejecuta sin tu permiso. La **memoria
 local-first** (`runtime/memory.py`, patrón Waku/Memmy) guarda episódica +
 semántica + procedural en un SQLite tuyo, con **retrieval gate** (solo
 recupera cuando el mensaje la necesita — fail-open) y workspaces que aíslan
-dominios (billing, content, research).
+dominios (billing, content, research). Y el bucle **MEJORAR** cristaliza lo
+ejecutado: `agent.learn()` registra el procedimiento y escribe la skill en
+`skills-draft/` como DRAFT — el release gate (`runtime/eval.py`) la revisa
+(checks deterministas + LLM-judge opcional) y **solo un humano la promueve**:
+`python -m focux promote <name>`.
 
 ```bash
 python -m focux skills                 # 56 skills cargados

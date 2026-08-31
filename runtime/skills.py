@@ -57,3 +57,88 @@ def load_skills(skills_dir: Path) -> list[Skill]:
             except (ValueError, RuntimeError):
                 continue  # unreadable skills are skipped, never fatal
     return skills
+
+
+# --- Skill crystallization (GenericAgent pattern, human-gated) ----------------
+
+DRAFT_STATUS = "draft"
+ACTIVE_STATUS = "active"
+
+
+def render_skill_markdown(
+    name: str,
+    description: str,
+    body: str,
+    *,
+    status: str = ACTIVE_STATUS,
+    version: str = "1.0.0",
+) -> str:
+    """Render a SKILL.md with the canonical frontmatter (validator-compatible)."""
+    return (
+        f"---\n"
+        f"name: {name}\n"
+        f"description: >-\n"
+        f"  {description.strip()}\n"
+        f"version: {version}\n"
+        f"metadata:\n"
+        f"  focux:\n"
+        f"    status: {status}\n"
+        f"---\n\n"
+        f"{body.strip()}\n"
+    )
+
+
+def crystallize_skill(
+    drafts_dir: Path,
+    *,
+    name: str,
+    description: str,
+    body: str,
+) -> Path:
+    """Write a crystallized skill as a DRAFT (never auto-activated).
+
+    Pattern from GenericAgent (MIT): after solving a task the first time, the
+    agent materializes the executed path as a reusable skill. FOCUX writes it
+    to ``skills-draft/`` with ``metadata.focux.status: draft`` — the active
+    catalog (``skills/``) is untouched until a human promotes it.
+    """
+    import re
+
+    if not re.fullmatch(r"[a-z0-9-]{1,64}", name):
+        raise ValueError("skill name must be 1-64 lowercase letters/numbers/hyphens")
+    target = drafts_dir / name / "SKILL.md"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        render_skill_markdown(name, description, body, status=DRAFT_STATUS),
+        encoding="utf-8",
+    )
+    return target
+
+
+def promote_skill(
+    drafts_dir: Path,
+    skills_dir: Path,
+    name: str,
+) -> Path:
+    """Promote a DRAFT to the active catalog (HUMAN review step).
+
+    Reads the draft, flips ``metadata.focux.status`` to ``active`` and writes
+    it into ``skills/<name>/SKILL.md``. The draft stays in ``skills-draft/``
+    as the audit trail. Raises if the draft does not exist or is not a draft.
+    """
+    draft_md = drafts_dir / name / "SKILL.md"
+    if not draft_md.is_file():
+        raise FileNotFoundError(f"no draft skill: {name}")
+    text = draft_md.read_text(encoding="utf-8")
+    if "status: draft" not in text:
+        raise ValueError(f"{name} is not a draft (refusing to promote)")
+    active_md = skills_dir / name / "SKILL.md"
+    active_md.parent.mkdir(parents=True, exist_ok=True)
+    promoted = text.replace("status: draft", "status: active")
+    active_md.write_text(promoted, encoding="utf-8")
+    return active_md
+
+
+def list_drafts(drafts_dir: Path) -> list[Skill]:
+    """List crystallized drafts (for human review)."""
+    return load_skills(drafts_dir)

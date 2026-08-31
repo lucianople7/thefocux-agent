@@ -112,6 +112,30 @@ def cmd_skills(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_drafts(args: argparse.Namespace) -> int:
+    from runtime.skills import list_drafts
+
+    drafts = list_drafts(REPO_ROOT / "skills-draft")
+    if not drafts:
+        print("no drafts (the agent has not crystallized anything yet)")
+        return 0
+    for skill in drafts:
+        print(f"- {skill.name} (DRAFT): {skill.description[:60]}")
+    print(f"\n{len(drafts)} draft(s). Promote with: python -m focux promote <name>")
+    return 0
+
+
+def cmd_promote(args: argparse.Namespace) -> int:
+    from runtime.skills import promote_skill
+
+    target = promote_skill(
+        REPO_ROOT / "skills-draft", REPO_ROOT / "skills", args.name
+    )
+    print(f"promoted {args.name} -> {target}")
+    print("HUMAN REVIEW: the skill is now active in skills/. Review it first.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="focux", description="THE FOCUX Agent")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -131,6 +155,13 @@ def main(argv: list[str] | None = None) -> int:
 
     skills = sub.add_parser("skills", help="list loaded skills")
     skills.set_defaults(func=cmd_skills)
+
+    drafts = sub.add_parser("drafts", help="list crystallized draft skills")
+    drafts.set_defaults(func=cmd_drafts)
+
+    promote = sub.add_parser("promote", help="promote a DRAFT skill to active (HUMAN review)")
+    promote.add_argument("name")
+    promote.set_defaults(func=cmd_promote)
 
     args = parser.parse_args(argv)
     return args.func(args)

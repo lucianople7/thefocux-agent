@@ -11,14 +11,16 @@ provider SDK — the agnosticism contract holds inside the loop too.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Callable
 
 from policy.constitution import Claim, Verdict, apply_constitution, law1_blocks
 from policy.money_gate import Action, ActionClass, Decision, MoneyGate
 
+from .eval import GateVerdict, release_gate
 from .llm import LLMClient
 from .memory import FocuxMemory
-from .skills import Skill
+from .skills import Skill, crystallize_skill
 
 
 @dataclass(frozen=True)
@@ -64,6 +66,8 @@ class FocuxAgent:
         *,
         memory: FocuxMemory | None = None,
         workspace: str = "default",
+        drafts_dir: Path | None = None,
+        judge: LLMClient | None = None,
         constitution: Callable[..., list[Verdict]] = apply_constitution,
     ) -> None:
         self._llm = llm
@@ -71,6 +75,8 @@ class FocuxAgent:
         self._skills = skills or []
         self._memory = memory
         self._workspace = workspace
+        self._drafts_dir = drafts_dir
+        self._judge = judge
         self._constitution = constitution
 
     # -- introspection -------------------------------------------------------
@@ -186,4 +192,71 @@ class FocuxAgent:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content},
             ]
+        )
+
+    # -- MEJORAR: learn from what executed -------------------------------------
+
+    def learn(
+        self,
+        name: str,
+        steps: tuple[str, ...],
+        *,
+        description: str = "",
+        outcome_ok: bool = True,
+    ) -> dict[str, object]:
+        """Crystallize an executed path into a DRAFT skill (human-gated).
+
+        Records the procedure in memory (success/fail counter) and writes a
+        skill to ``skills-draft/`` AFTER the release gate passes. A DRAFT is
+        never auto-activated: the human promotes it (``promote_skill``). A
+        REJECT or HOLD leaves the procedure in memory but writes no skill.
+        """
+        if self._memory is not None:
+            self._memory.learn_procedure(self._workspace, name, steps)
+            self._memory.record_outcome(
+                self._workspace, name, success=outcome_ok
+            )
+        if self._drafts_dir is None:
+            return {"learned": False, "reason": "no drafts_dir configured"}
+
+        body = self._render_skill_body(name, steps)
+        skill_md = crystallize_skill(
+            self._drafts_dir,
+            name=name,
+            description=description or f"Crystallized procedure: {name}",
+            body=body,
+        )
+        verdict: GateVerdict = release_gate(skill_md, judge=self._judge)
+        if not verdict.passed:
+            # Keep the draft on disk for inspection, but report the verdict.
+            return {
+                "learned": True,
+                "draft": str(skill_md),
+                "verdict": verdict.verdict,
+                "checks": list(verdict.checks),
+                "judge_reason": verdict.judge_reason,
+                "activated": False,
+                "reason": "release gate not passed; human review required",
+            }
+        return {
+            "learned": True,
+            "draft": str(skill_md),
+            "verdict": verdict.verdict,
+            "checks": list(verdict.checks),
+            "judge_reason": verdict.judge_reason,
+            "activated": False,  # ALWAYS human-gated, even on PASS
+            "reason": "release gate passed; awaiting human promotion",
+        }
+
+    @staticmethod
+    def _render_skill_body(name: str, steps: tuple[str, ...]) -> str:
+        """Render the crystallized skill body from executed steps."""
+        step_lines = "\n".join(f"{i}. {s}" for i, s in enumerate(steps, 1))
+        return (
+            f"# {name}\n\n"
+            f"Crystallized from an executed path (FOCUX MEJORAR loop).\n\n"
+            f"## Process\n{step_lines}\n\n"
+            f"## Verification\n"
+            f"- Each step must produce an observable result (receipt/metric).\n"
+            f"- Money/publish/account actions pass the money-gate first.\n"
         )
