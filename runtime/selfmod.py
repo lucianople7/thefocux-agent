@@ -13,10 +13,15 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+#: Guards parallel appends within one process (os.write is atomic per call;
+#: the lock prevents interleaved writes from threads).
+_APPEND_LOCK = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -67,8 +72,16 @@ class SelfModLog:
             reversible=reversible,
             data=_safe_data(data),
         )
-        with open(self._path, "a", encoding="utf-8") as fh:
-            fh.write(json.dumps(entry.as_dict(), ensure_ascii=False) + "\n")
+        line = (json.dumps(entry.as_dict(), ensure_ascii=False) + "\n").encode("utf-8")
+        # REGRESSION round 5: parallel appends lost entries. Each append must
+        # be ONE atomic write: thread lock + a single os.write on an O_APPEND
+        # fd (append mode makes multi-process writes atomic too).
+        with _APPEND_LOCK:
+            fd = os.open(self._path, os.O_WRONLY | os.O_APPEND | os.O_CREAT)
+            try:
+                os.write(fd, line)
+            finally:
+                os.close(fd)
         return entry
 
     def entries(self, limit: int = 50) -> list[SelfModEntry]:

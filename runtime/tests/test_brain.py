@@ -95,6 +95,29 @@ def test_selfmod_handles_non_serializable_data(tmp_path: Path) -> None:
     assert entry.id == entries[0].id
 
 
+def test_selfmod_parallel_appends_no_loss(tmp_path: Path) -> None:
+    """REGRESSION (round 5): parallel appends must not lose entries."""
+    import threading
+
+    log = SelfModLog(tmp_path / "selfmod.jsonl")
+    errors: list[Exception] = []
+
+    def writer(k: int) -> None:
+        try:
+            for i in range(50):
+                log.append("kind", f"{k}-{i}", data={"n": i})
+        except Exception as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    threads = [threading.Thread(target=writer, args=(k,)) for k in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert not errors, errors
+    assert len(log.entries(limit=10_000)) == 8 * 50
+
+
 def test_selfmod_persists(tmp_path: Path) -> None:
     path = tmp_path / "selfmod.jsonl"
     log1 = SelfModLog(path)
