@@ -38,6 +38,11 @@ _RETRIEVAL_KEYWORDS = (
     "email", "correo", "offer", "oferta", "metric", "métrica", "métricas",
     "recuerda", "remember", "memoria", "memory", "reunión", "meeting",
     "factura", "invoice", "stock", "inventario", "audiencia", "audience",
+    # identity / mission / strategy triggers (BRAIN self-improvement: found by
+    # live test 2026-08-31 — "north star" queries missed the gate)
+    "north star", "northstar", "misión", "mision", "misio", "objetivo",
+    "objective", "estrategia", "strategy", "quién soy", "who am i", "identidad",
+    "identity", "metas", "goals", "proposito", "purpose", "vision", "visión",
 )
 
 _GATE_PROMPT = """\
