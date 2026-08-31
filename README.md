@@ -79,7 +79,11 @@ THE FOCUX no necesita OpenClaw, CowAgent ni ningún runtime externo: se
 inferencia (solo `urllib`), con el money-gate y la constitución siempre en el
 camino. El **tool layer gateado** (`runtime/tools.py`) le permite *actuar*:
 el LLM pide una tool, el gate decide ALLOW/REVIEW/DENY, y REVIEW devuelve una
-tarjeta de aprobación humana. Nada se ejecuta sin tu permiso.
+tarjeta de aprobación humana. Nada se ejecuta sin tu permiso. La **memoria
+local-first** (`runtime/memory.py`, patrón Waku/Memmy) guarda episódica +
+semántica + procedural en un SQLite tuyo, con **retrieval gate** (solo
+recupera cuando el mensaje la necesita — fail-open) y workspaces que aíslan
+dominios (billing, content, research).
 
 ```bash
 python -m focux skills                 # 56 skills cargados

@@ -17,6 +17,7 @@ from policy.constitution import Claim, Verdict, apply_constitution, law1_blocks
 from policy.money_gate import Action, ActionClass, Decision, MoneyGate
 
 from .llm import LLMClient
+from .memory import FocuxMemory
 from .skills import Skill
 
 
@@ -61,11 +62,15 @@ class FocuxAgent:
         gate: MoneyGate,
         skills: list[Skill] | None = None,
         *,
+        memory: FocuxMemory | None = None,
+        workspace: str = "default",
         constitution: Callable[..., list[Verdict]] = apply_constitution,
     ) -> None:
         self._llm = llm
         self._gate = gate
         self._skills = skills or []
+        self._memory = memory
+        self._workspace = workspace
         self._constitution = constitution
 
     # -- introspection -------------------------------------------------------
@@ -74,11 +79,28 @@ class FocuxAgent:
     def skills(self) -> list[Skill]:
         return self._skills
 
+    @property
+    def memory(self) -> FocuxMemory | None:
+        return self._memory
+
+    @property
+    def workspace(self) -> str:
+        return self._workspace
+
     def skill_named(self, name: str) -> Skill | None:
         for skill in self._skills:
             if skill.name == name:
                 return skill
         return None
+
+    def _memory_block(self, prompt: str) -> str:
+        """Context block injected before drafting (empty when gate says no)."""
+        if self._memory is None:
+            return ""
+        try:
+            return self._memory.context_block(prompt, self._workspace)
+        except Exception:  # noqa: BLE001 - memory is an enhancement, never fatal
+            return ""
 
     # -- the loop ------------------------------------------------------------
 
@@ -155,9 +177,13 @@ class FocuxAgent:
             skill = self.skill_named(skill_name)
             if skill:
                 system_prompt += "\n\nApply this skill:\n" + skill.instructions()
+        memory_block = self._memory_block(prompt)
+        user_content = (
+            f"{memory_block}\n\n{prompt}" if memory_block else prompt
+        )
         return self._llm.complete(
             [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt},
+                {"role": "user", "content": user_content},
             ]
         )
