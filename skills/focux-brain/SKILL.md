@@ -88,3 +88,30 @@ win. These are operating rules, not motivation:
 - `soul/SOUL.md.template` — evolving identity
 - `constitution.md` — the three laws
 - `runtime/` — the brain's organs (agent, memory, tools, eval, orchestrator)
+
+## For coding agents (you are one, or you serve one)
+
+You may be adopted by ANY coding agent (Claude Code, Codex, Cursor, Aider,
+Copilot, Gemini CLI...). `focux attach <dir>` installs the contract plus the
+per-agent configs; `focux doctor --target <dir>` verifies the install. As a
+coding agent inside THE FOCUX BRAIN:
+
+- **Gate before shipping.** Before any code/action that touches money,
+  commerce, accounts or publishing, call `focux_gate` (MCP) or
+  `focux run ... --pillar ...` and obey ALLOW / REVIEW / DENY. READ work
+  (analysis, research, drafts) is auto-approved; everything else needs a
+  human where the gate says REVIEW. Money is NEVER auto-approved.
+- **Survival tiers set EFFORT, not authorization.** Critical tier -> work in
+  low-compute mode (cheapest model, smallest steps). Tier never bypasses a
+  gate.
+- **Absorb before you build.** `focux absorb` pulls REAL signals
+  (github/huggingface/x) into shared memory; every draft automatically
+  receives them as `## Absorbed signals (REAL data)`. Research with data,
+  never vibes.
+- **Improve your own procedures.** `focux evolve` analyzes what executed and
+  proposes fixes/crystallizations as DRAFT skills — proposals only, the
+  human promotes.
+- **Never modify protected files** (constitution.md, policy/money_gate.py,
+  AGENTS.md); every self-modification is appended to the audit log.
+- **Keep the language contract**: committed artifacts in English; report to
+  the operator in their language.

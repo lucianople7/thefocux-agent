@@ -65,6 +65,8 @@ MODULES: tuple[Module, ...] = (
            deps=("constitution",), entry="runtime.offer"),
     Module("ingest", "1.0.0", "Real-data absorption: github/huggingface/x sensors -> memory",
            deps=("memory",), entry="runtime.ingest"),
+    Module("attach", "1.0.0", "Universal installer: THE FOCUX BRAIN in any coding agent's workspace",
+           deps=("memory",), entry="runtime.attach"),
     Module("mcp-bridge", "1.0.0", "The brain as MCP tools for any agent",
            deps=("tools", "memory", "survival", "heartbeat", "orchestrator",
                  "selfmod"), entry="mcp_bridge"),

@@ -85,7 +85,31 @@ def test_roles_tool() -> None:
          "params": {"name": "focux_roles", "arguments": {}}},
     ])
     data = json.loads(out[-1]["result"]["content"][0]["text"])
-    assert data["count"] == 9
+    # Honest count: matches the roles actually returned (never a hardcoded lie).
+    assert data["count"] == len(data["roles"])
+    assert data["count"] >= 11
+
+
+def test_signals_tool() -> None:
+    out = _run_mcp([
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+         "params": {"protocolVersion": "2024-11-05", "capabilities": {}}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+         "params": {"name": "focux_signals", "arguments": {"workspace": "research"}}},
+    ])
+    data = json.loads(out[-1]["result"]["content"][0]["text"])
+    assert "signals" in data
+    assert isinstance(data["signals"], list)
+
+
+def test_selfcheck_mode() -> None:
+    proc = subprocess.run(
+        [sys.executable, "mcp_bridge.py", "--selfcheck"],
+        capture_output=True, text=True, cwd=str(REPO), timeout=60,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "MCP OK" in proc.stdout
+    assert "gate(research/read)" in proc.stdout
 
 
 def test_selfmod_tool() -> None:

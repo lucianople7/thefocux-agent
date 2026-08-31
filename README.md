@@ -30,7 +30,7 @@ irm https://raw.githubusercontent.com/lucianople7/thefocux-agent/main/install.ps
 curl -fsSL https://raw.githubusercontent.com/lucianople7/thefocux-agent/main/install.sh | bash
 ```
 
-Instala el CLI global `focux` + `focux-web`, 57 skills, 9 roles y el BRAIN.
+Instala el CLI global `focux` + `focux-web`, 57 skills, 11 roles y el BRAIN.
 Luego: `Copy-Item .env.example .env` y añade tu API key (DeepSeek, Qwen,
 OpenAI, o `auto` vía OmniRoute con free tiers).
 
@@ -40,12 +40,25 @@ No solo un agente: una **capa de gobierno** que cualquier agente adopta para
 cualquier negocio. Monta el brain en un directorio con un comando:
 
 ```bash
-focux attach ./mi-negocio     # AGENTS.md + metaskill + constitución + memoria
+focux attach ./mi-negocio     # contrato universal + configs por agente + MCP
+focux doctor --target ./mi-negocio   # verifica la instalación end-to-end
 ```
 
-Cualquier agente (Codex, Claude Code, CowAgent, el futuro) que trabaje en ese
-directorio lee `AGENTS.md` + `skills/focux-brain` y opera con la identidad,
-la inmunidad y la mejora de THE FOCUX — sin cambiar su runtime:
+Cualquier agente (Codex, Claude Code, Cursor, Aider, Copilot, Gemini CLI,
+CowAgent, el futuro) que trabaje en ese directorio lee `AGENTS.md` +
+`skills/focux-brain` y opera con la identidad, la inmunidad y la mejora de
+THE FOCUX — sin cambiar su runtime. `focux attach` instala, además del
+contrato universal, la configuración nativa de cada agente:
+
+- **Claude Code** → `.mcp.json` (servidor MCP `thefocux` registrado)
+- **Codex** → `.codex/config.toml` (sección `[mcp_servers.thefocux]` añadida)
+- **Cursor** → `.cursor/mcp.json` + regla `.cursor/rules/focux.mdc`
+- **Aider** → `.aider.conf.yml` (auto-lectura de `AGENTS.md`)
+- **Copilot** → `.github/copilot-instructions.md`
+- **Gemini CLI** → lee `AGENTS.md` nativamente (sin archivo extra)
+
+Idempotente y no destructivo: re-ejecutar nunca pisa tus configs (JSON se
+fusiona, TOML se añade); `--force` refresca solo lo que THE FOCUX posee.
 
 - **Identidad** — `AGENTS.md` + `focux-brain/SKILL.md`: quién eres, qué
   consigues, cómo (el bucle), qué jamás.
@@ -63,10 +76,11 @@ focux heartbeat --revenue 3000 --cost 2000 --cash 5000 --approvals 2
 # HEARTBEAT ... Tier: high | runway: 90.0d | Roles due: none | Healthy: yes
 #            ... Momentum: 12 runs · 83% success · 3 skills crystallized · WINNING
 
-focux doctor        # brain diagnostics (skills, gates, provider, survival, audit)
-focux attach ./neg  # agent-first workspace: AGENTS.md + metaskill + constitución
-                    # + SQLite memory initialized + .env + .gitignore
-focux modules       # sistema modular: 19 órganos registrados + integrity check
+focux doctor        # brain diagnostics (skills, gates, provider, MCP, survival)
+focux doctor --target ./neg  # + verifica el workspace attached end-to-end
+focux attach ./neg  # UNIVERSAL: AGENTS.md + metaskill + constitución + memoria
+                    # + configs nativas (claude/codex/cursor/aider/copilot) + MCP
+focux modules       # sistema modular: 20 órganos registrados + integrity check
 focux evolve        # evolución diaria: analiza lo ejecutado, propone mejoras
 focux absorb        # absorbe DATOS REALES (github/huggingface/x) a la memoria
 focux multiply '<insight>'   # REVENUE MULTIPLIER: 1 pieza -> 20+ activos
@@ -110,12 +124,12 @@ append-only. Todo es propuesta: nada se auto-activa.
 
 ## Sistema modular — cada órgano registrado y verificado
 
-`focux modules` lista los 19 órganos del brain (money-gate, constitution,
+`focux modules` lista los 20 órganos del brain (money-gate, constitution,
 soul, voice, content, memory, tools, eval, survival, heartbeat, selfmod,
-orchestrator, evolution, repurpose, offer, ingest, mcp-bridge, webui...) con
-versión semver y dependencias. `integrity_check` **prueba que cada módulo
-importa y que el falsification del money-gate sigue verde** — un módulo nuevo
-no puede romper el sistema inmune en silencio.
+orchestrator, evolution, repurpose, offer, ingest, attach, mcp-bridge,
+webui...) con versión semver y dependencias. `integrity_check` **prueba que
+cada módulo importa y que el falsification del money-gate sigue verde** — un
+módulo nuevo no puede romper el sistema inmune en silencio.
 
 ## Absorción de datos reales — el cerebro que ve el mundo
 
@@ -146,11 +160,16 @@ tools MCP (`mcp_bridge.py`, registrado en Codex como `thefocux`):
 - `focux_gate` — decide ALLOW/REVIEW/DENY antes de actuar
 - `focux_survival` — tier del negocio (esfuerzo, nunca autorización)
 - `focux_heartbeat` — tier + roles due + aprobaciones pendientes
-- `focux_roles` — los 9 roles con horarios
+- `focux_roles` — los 11 roles con horarios
+- `focux_signals` — datos REALES absorbidos (github/huggingface/x) como hechos
 - `focux_memory` — hechos, eventos, procedimientos (SQLite compartido)
 - `focux_learn` — cristaliza procedimientos como DRAFT (humano promueve)
 - `focux_selfmod` — auditoría append-only de auto-modificaciones
 - `focux_redact` — secrets nunca en receipts
+
+`focux doctor` ejecuta un **handshake real** contra el bridge (`--selfcheck`:
+initialize → tools/list → gate call) y verifica workspaces attached con
+`--target`.
 
 **57 skills**: **17 de contenido** (el sistema completo de
 [Charlie Hills social-media-skills](https://github.com/charlie947/social-media-skills),
@@ -249,15 +268,15 @@ tokens, prompts y args) y el **dry-run mode** decide-y-registra sin bloquear
 para afinar policy contra tráfico real antes de exigirla.
 
 ```bash
-python -m focux skills                 # 56 skills cargados
-python -m focux agents                 # 9 roles de negocio con horarios
+python -m focux skills                 # 57 skills cargados
+python -m focux agents                 # 11 roles de negocio con horarios
 python -m focux agents --run planning  # ejecutar un rol (gateado)
 python -m focux run "publish a post about AI" --pillar content   # gate: REVIEW
 python -m focux repl                   # sesión interactiva con gates
 python -m focux run "analizar el nicho" --pillar research --draft # ALLOW + draft
 ```
 
-## Orquestador: 9 roles de negocio con horarios
+## Orquestador: 11 roles de negocio con horarios
 
 El patrón de agentes especializados (estilo Polsia) implementado de forma
 original en `runtime/orchestrator.py` — determinista (sin LLM en los
@@ -305,10 +324,11 @@ thefocux-agent/
 ├── focux.py               # CLI: run | repl | skills | absorb | multiply
 ├── runtime/               # runtime propio: agente, LLM, skills (sin shell)
 │   ├── ingest.py          #   sensores reales: github/huggingface/x -> memoria
+│   ├── attach.py          #   instalador universal: brain en cualquier agente
 │   ├── repurpose.py       #   multiplier: 1 pieza -> 20+ activos
 │   ├── offer.py           #   escalera de 5 peldaños: atención -> ingresos
 │   ├── evolution.py       #   ciclo diario: analiza -> propone mejoras
-│   └── modules.py         #   registro modular (19 órganos) + integrity check
+│   └── modules.py         #   registro modular (20 órganos) + integrity check
 ├── policy/                # DNA determinista, NO LLM en rutas de decisión
 │   ├── money_gate.py      #   approval boundary (ALLOW/REVIEW/DENY)
 │   ├── constitution.py    #   3 leyes inmutables como código

@@ -174,80 +174,40 @@ def cmd_agents(args: argparse.Namespace) -> int:
 
 
 def cmd_attach(args: argparse.Namespace) -> int:
-    """Mount THE FOCUX BRAIN on any agent/business directory."""
-    import shutil
+    """Mount THE FOCUX BRAIN on any agent/business directory (universal)."""
+    from runtime.attach import AGENTS, attach
 
+    agents = tuple(a.strip() for a in args.agents.split(",") if a.strip())
+    report = attach(
+        Path(args.dir).resolve(),
+        REPO_ROOT,
+        agents=agents,
+        force=args.force,
+        with_mcp=not args.no_mcp,
+    )
     target = Path(args.dir).resolve()
-    target.mkdir(parents=True, exist_ok=True)
-    mounted: list[str] = []
-
-    # AGENTS.md (identity contract)
-    agents_md = target / "AGENTS.md"
-    if not agents_md.exists():
-        shutil.copy2(REPO_ROOT / "AGENTS.md", agents_md)
-        mounted.append("AGENTS.md")
-
-    # focux-brain metaskill (the identity the agent loads)
-    brain_skill = target / ".agents" / "skills" / "focux-brain"
-    if not brain_skill.exists():
-        brain_skill.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(
-            REPO_ROOT / "skills" / "focux-brain" / "SKILL.md",
-            brain_skill / "SKILL.md",
-        )
-        mounted.append(".agents/skills/focux-brain/SKILL.md")
-
-    # constitution (immutable laws)
-    constitution = target / "constitution.md"
-    if not constitution.exists():
-        shutil.copy2(REPO_ROOT / "constitution.md", constitution)
-        mounted.append("constitution.md")
-
-    # memory dir (shared business memory)
-    memory_dir = target / "memory"
-    if not memory_dir.exists():
-        memory_dir.mkdir(parents=True, exist_ok=True)
-        (memory_dir / "README.md").write_text(
-            "FOCUX BRAIN shared memory: metrics.md, decisions.md, receipts/, "
-            "focux.db (SQLite), selfmod.jsonl (audit).",
-            encoding="utf-8",
-        )
-        mounted.append("memory/")
-
-    # .env from example (agent-first: provider ready)
-    env_file = target / ".env"
-    if not env_file.exists() and (REPO_ROOT / ".env.example").exists():
-        shutil.copy2(REPO_ROOT / ".env.example", env_file)
-        mounted.append(".env (from example — add your API key)")
-
-    # .gitignore for the workspace (never commit memory/secrets)
-    gitignore = target / ".gitignore"
-    if not gitignore.exists():
-        gitignore.write_text(
-            ".env\nmemory/focux.db\nmemory/focux.db-*\nmemory/selfmod.jsonl\n",
-            encoding="utf-8",
-        )
-        mounted.append(".gitignore (secrets + memory ignored)")
-
-    # init shared SQLite memory (real, agent-first)
-    try:
-        from runtime.memory import FocuxMemory
-
-        db = memory_dir / "focux.db"
-        if not db.exists():
-            FocuxMemory(db)
-            mounted.append(f"memory/focux.db (SQLite inicializado)")
-    except Exception:  # noqa: BLE001 - non-fatal
-        pass
-
-    if not mounted:
-        print("already attached (AGENTS.md, brain skill, constitution, memory present)")
+    if not report.changed:
+        print(f"already attached ({target}): all brain files present")
+        for note in report.notes:
+            print(f"  note: {note}")
         return 0
     print(f"THE FOCUX BRAIN attached to {target}:")
-    for item in mounted:
+    for item in report.created:
         print(f"  + {item}")
-    print("\nNow any agent in that directory reads AGENTS.md + the brain skill,")
-    print("and shares the SQLite memory. Configure: .env -> add your API key.")
+    for item in report.updated:
+        print(f"  ~ {item} (refreshed)")
+    for item in report.skipped:
+        print(f"  = {item} (already present)")
+    for note in report.notes:
+        print(f"  note: {note}")
+    names = ", ".join(
+        label for aid, label in AGENTS.items()
+        if aid in agents or "all" in agents
+    )
+    print(f"\nAgents covered: {names}")
+    print("Now ANY coding agent in that directory reads AGENTS.md + the brain")
+    print("skill, shares the SQLite memory, and can call the MCP tools.")
+    print("Configure: .env -> add your API key. Verify: focux doctor --target <dir>")
     return 0
 
 
@@ -267,7 +227,11 @@ def cmd_heartbeat(args: argparse.Namespace) -> int:
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
-    """Brain diagnostics: skills, gates, memory, providers, MCP, survival."""
+    """Brain diagnostics: skills, gates, memory, providers, MCP, survival.
+
+    With ``--target <dir>`` it also verifies an ATTACHED workspace end-to-end
+    (the universal installer's contract).
+    """
     ok = True
 
     def check(label: str, cond: bool, detail: str = "") -> None:
@@ -275,9 +239,9 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         status = "OK " if cond else "FAIL"
         if not cond:
             ok = False
-        print(f"  [{status}] {label}" + (f" — {detail}" if detail else ""))
+        print(f"  [{status}] {label}" + (f" - {detail}" if detail else ""))
 
-    print("THE FOCUX BRAIN — doctor")
+    print("THE FOCUX BRAIN - doctor")
 
     # skills
     agent = build_agent()
@@ -285,7 +249,8 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 
     # gates
     gate = default_gate()
-    check("money-gate falsification", gate.falsification_test(), "never auto-approves money")
+    check("money-gate falsification", gate.falsification_test(),
+          "never auto-approves money")
 
     # memory
     mem = agent.memory
@@ -301,7 +266,8 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 
     # orchestrator
     from runtime.orchestrator import all_roles
-    check("orchestrator", len(all_roles()) == 9, "9 roles")
+    roles = all_roles()
+    check("orchestrator", len(roles) >= 11, f"{len(roles)} roles")
 
     # survival
     from runtime.survival import BusinessFinances, survival_tier
@@ -314,7 +280,36 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     log = SelfModLog()
     check("selfmod audit", log.count() >= 0, f"{log.count()} entries")
 
-    print("RESULT: " + ("OK — THE FOCUX BRAIN is operational." if ok else "ISSUES FOUND"))
+    # MCP bridge: real stdio handshake (initialize + tools/list + gate call)
+    import subprocess
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(REPO_ROOT / "mcp_bridge.py"), "--selfcheck"],
+            capture_output=True, text=True, timeout=60,
+        )
+        mcp_ok = proc.returncode == 0 and "MCP OK" in proc.stdout
+        check("MCP bridge handshake", mcp_ok,
+              proc.stdout.strip().splitlines()[-1] if proc.stdout.strip() else "no output")
+        if not mcp_ok:
+            check("MCP bridge stderr", False,
+                  (proc.stderr or "").strip()[:200])
+    except Exception as exc:  # noqa: BLE001
+        check("MCP bridge handshake", False, f"{type(exc).__name__}: {exc}")
+
+    # attached workspace verification (universal installer contract)
+    if args.target:
+        from runtime.attach import verify_attached
+        print(f"\n  attached workspace: {Path(args.target).resolve()}")
+        vrep = verify_attached(Path(args.target).resolve(), REPO_ROOT)
+        for c in vrep.checks:
+            if c.critical:
+                check(c.label, c.ok, c.detail)
+            else:
+                print(f"  [info] {c.label}" + (f" - {c.detail}" if c.detail else ""))
+        if not vrep.ok:
+            ok = False
+
+    print("RESULT: " + ("OK - THE FOCUX BRAIN is operational." if ok else "ISSUES FOUND"))
     return 0 if ok else 1
 
 
@@ -453,6 +448,12 @@ def main(argv: list[str] | None = None) -> int:
 
     attach = sub.add_parser("attach", help="mount THE FOCUX BRAIN on any agent/business dir")
     attach.add_argument("dir", help="target directory")
+    attach.add_argument("--agents", default="all",
+                        help="comma list: all,claude,codex,cursor,aider,copilot,gemini")
+    attach.add_argument("--force", action="store_true",
+                        help="refresh files THE FOCUX owns (safe merges for configs)")
+    attach.add_argument("--no-mcp", action="store_true",
+                        help="skip MCP server registration")
     attach.set_defaults(func=cmd_attach)
 
     hb = sub.add_parser("heartbeat", help="survival tier + roles due + approvals")
@@ -463,6 +464,8 @@ def main(argv: list[str] | None = None) -> int:
     hb.set_defaults(func=cmd_heartbeat)
 
     doctor = sub.add_parser("doctor", help="THE FOCUX BRAIN diagnostics")
+    doctor.add_argument("--target", default="",
+                        help="verify an attached workspace (focux attach <dir>)")
     doctor.set_defaults(func=cmd_doctor)
 
     evolve = sub.add_parser("evolve", help="daily evolution cycle (analyze -> improve)")

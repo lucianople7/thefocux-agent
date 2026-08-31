@@ -126,10 +126,34 @@ def _tool_heartbeat(args: dict) -> dict:
 
 
 def _tool_roles(args: dict) -> dict:
-    """List the 9 specialized business roles with schedules."""
+    """List the specialized business roles with schedules (honest count)."""
     from runtime.orchestrator import all_roles
 
-    return {"roles": [r.as_dict() for r in all_roles()], "count": 9}
+    roles = all_roles()
+    return {"roles": [r.as_dict() for r in roles], "count": len(roles)}
+
+
+def _tool_signals(args: dict) -> dict:
+    """Latest absorbed REAL data (github/huggingface/x) as fact lines.
+
+    Reads the repo's shared SQLite memory; empty when nothing absorbed yet
+    (run `focux absorb` first).
+    """
+    from runtime.ingest import recent_signals
+    from runtime.memory import FocuxMemory
+
+    db = REPO / "memory" / "focux.db"
+    if not db.exists():
+        return {"signals": [], "source": "no shared memory yet - run 'focux absorb'"}
+    workspace = str(args.get("workspace", "default"))
+    mem = FocuxMemory(db)
+    try:
+        return {
+            "workspace": workspace,
+            "signals": recent_signals(mem, workspace),
+        }
+    finally:
+        mem.close()
 
 
 def _tool_selfmod(args: dict) -> dict:
@@ -230,9 +254,19 @@ TOOLS: dict[str, dict] = {
         "handler": _tool_heartbeat,
     },
     "focux_roles": {
-        "description": "List the 9 specialized business roles with schedules (orchestrator, social, finance...).",
+        "description": "List the specialized business roles with schedules (orchestrator, planning, social, finance, evolution...).",
         "inputSchema": {"type": "object", "properties": {}},
         "handler": _tool_roles,
+    },
+    "focux_signals": {
+        "description": "Latest absorbed REAL data (github/huggingface/x) as fact lines for analysis.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workspace": {"type": "string", "description": "workspace to read (default)"},
+            },
+        },
+        "handler": _tool_signals,
     },
     "focux_selfmod": {
         "description": "Append-only self-modification audit (skills crystallized, drafts). Protected files listed.",
@@ -257,8 +291,60 @@ def _send(obj: dict) -> None:
     sys.stdout.flush()
 
 
-def main() -> int:
-    tools_list = [
+def _handle(msg: dict, tools_list: list[dict]) -> dict | None:
+    """Handle one JSON-RPC message; returns the response (None for notif)."""
+    method = msg.get("method", "")
+    msg_id = msg.get("id")
+
+    if method == "initialize":
+        return {
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "result": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {"tools": {}},
+                "serverInfo": {"name": "thefocux-dna", "version": "1.0.0"},
+            },
+        }
+    if method == "notifications/initialized":
+        return None
+    if method == "tools/list":
+        return {"jsonrpc": "2.0", "id": msg_id, "result": {"tools": tools_list}}
+    if method == "ping":
+        return {"jsonrpc": "2.0", "id": msg_id, "result": {}}
+    if method == "tools/call":
+        params = msg.get("params", {})
+        name = params.get("name", "")
+        args = params.get("arguments", {}) or {}
+        meta = TOOLS.get(name)
+        if meta is None:
+            return {
+                "jsonrpc": "2.0", "id": msg_id,
+                "error": {"code": -32602, "message": f"unknown tool: {name}"},
+            }
+        try:
+            result = meta["handler"](args)
+            return {
+                "jsonrpc": "2.0", "id": msg_id,
+                "result": {
+                    "content": [
+                        {"type": "text", "text": json.dumps(result, ensure_ascii=False)}
+                    ],
+                },
+            }
+        except Exception as exc:  # noqa: BLE001 - report tool failure
+            return {
+                "jsonrpc": "2.0", "id": msg_id,
+                "error": {"code": -32603, "message": f"{type(exc).__name__}: {exc}"},
+            }
+    return {
+        "jsonrpc": "2.0", "id": msg_id,
+        "error": {"code": -32601, "message": f"method not found: {method}"},
+    }
+
+
+def _tools_list() -> list[dict]:
+    return [
         {
             "name": name,
             "description": meta["description"],
@@ -266,6 +352,44 @@ def main() -> int:
         }
         for name, meta in TOOLS.items()
     ]
+
+
+def selfcheck() -> int:
+    """In-process handshake: initialize + tools/list + gate call (READ).
+
+    Used by `focux doctor` to prove the MCP surface answers over stdio
+    without needing a live MCP host.
+    """
+    tools = _tools_list()
+    msgs = [
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+         "params": {"protocolVersion": "2024-11-05", "capabilities": {}}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+        {"jsonrpc": "2.0", "id": 3, "method": "tools/call",
+         "params": {"name": "focux_gate",
+                    "arguments": {"pillar": "research", "objective": "selfcheck"}}},
+    ]
+    try:
+        responses = {}
+        for m in msgs:
+            r = _handle(m, tools)
+            if r is not None:
+                responses[m["id"]] = r
+        listed = responses[2]["result"]["tools"]
+        gate_text = responses[3]["result"]["content"][0]["text"]
+        gate = json.loads(gate_text)
+        decision = gate.get("decision", "?")
+        if decision not in ("ALLOW", "REVIEW", "DENY"):
+            raise ValueError(f"unexpected decision: {decision!r}")
+        print(f"MCP OK: {len(listed)} tools; gate(research/read) -> {decision}")
+        return 0
+    except Exception as exc:  # noqa: BLE001 - selfcheck failure
+        print(f"MCP FAIL: {type(exc).__name__}: {exc}")
+        return 1
+
+
+def main() -> int:
+    tools_list = _tools_list()
     for line in sys.stdin:
         line = line.strip()
         if not line:
@@ -274,58 +398,13 @@ def main() -> int:
             msg = json.loads(line)
         except json.JSONDecodeError:
             continue
-        method = msg.get("method", "")
-        msg_id = msg.get("id")
-
-        if method == "initialize":
-            _send({
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "result": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "thefocux-dna", "version": "1.0.0"},
-                },
-            })
-        elif method == "notifications/initialized":
-            pass
-        elif method == "tools/list":
-            _send({"jsonrpc": "2.0", "id": msg_id, "result": {"tools": tools_list}})
-        elif method == "tools/call":
-            params = msg.get("params", {})
-            name = params.get("name", "")
-            args = params.get("arguments", {}) or {}
-            meta = TOOLS.get(name)
-            if meta is None:
-                _send({
-                    "jsonrpc": "2.0", "id": msg_id,
-                    "error": {"code": -32602, "message": f"unknown tool: {name}"},
-                })
-                continue
-            try:
-                result = meta["handler"](args)
-                _send({
-                    "jsonrpc": "2.0", "id": msg_id,
-                    "result": {
-                        "content": [
-                            {"type": "text", "text": json.dumps(result, ensure_ascii=False)}
-                        ],
-                    },
-                })
-            except Exception as exc:  # noqa: BLE001 - report tool failure
-                _send({
-                    "jsonrpc": "2.0", "id": msg_id,
-                    "error": {"code": -32603, "message": f"{type(exc).__name__}: {exc}"},
-                })
-        elif method == "ping":
-            _send({"jsonrpc": "2.0", "id": msg_id, "result": {}})
-        else:
-            _send({
-                "jsonrpc": "2.0", "id": msg_id,
-                "error": {"code": -32601, "message": f"method not found: {method}"},
-            })
+        resp = _handle(msg, tools_list)
+        if resp is not None:
+            _send(resp)
     return 0
 
 
 if __name__ == "__main__":
+    if "--selfcheck" in sys.argv:
+        raise SystemExit(selfcheck())
     raise SystemExit(main())
