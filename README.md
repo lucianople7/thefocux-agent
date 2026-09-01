@@ -38,7 +38,11 @@ Sin pip también puedes hacer el CLI global portable en cualquier máquina:
 
 ```bash
 focux install                 # launchers portables en ~/.thefocux/bin (PATH)
-focux install --mcp           # + registra el brain MCP a nivel usuario (Codex)
+focux install --mcp           # + registra el brain MCP a nivel usuario:
+                              #   Codex (~/.codex/config.toml)
+                              #   Claude Code (~/.claude.json, merge seguro)
+                              #   Cursor (~/.cursor/mcp.json)
+focux doctor                  # verifica qué agentes tienen el MCP registrado
 ```
 
 ## THE FOCUX BRAIN — el mejorador de agentes y negocios

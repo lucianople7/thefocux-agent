@@ -241,8 +241,10 @@ def cmd_install(args: argparse.Namespace) -> int:
     else:
         print(f'  export PATH="{prefix}:$PATH"')
     if args.mcp:
+        from runtime.install import user_mcp_registered
+
         report = register_user_mcp(REPO_ROOT)
-        print("\nMCP registration:")
+        print("\nMCP registration (user level, ANY agent):")
         for item in report.created:
             print(f"  + {item}")
         for item in report.updated:
@@ -251,6 +253,13 @@ def cmd_install(args: argparse.Namespace) -> int:
             print(f"  = {item}")
         for note in report.notes:
             print(f"  note: {note}")
+        status = user_mcp_registered()
+        print("\n  agents with thefocux MCP registered:")
+        for agent, registered in status.items():
+            mark = "OK " if registered else "no "
+            print(f"    [{mark}] {agent}")
+        if not any(status.values()):
+            print("  (none found yet - re-run after the writes or check paths)")
     # verify: the launcher answers
     import subprocess
 
@@ -350,6 +359,12 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                   (proc.stderr or "").strip()[:200])
     except Exception as exc:  # noqa: BLE001
         check("MCP bridge handshake", False, f"{type(exc).__name__}: {exc}")
+
+    # user-level MCP registration (`focux install --mcp`) — info, not critical
+    from runtime.install import user_mcp_registered
+    for agent, registered in user_mcp_registered().items():
+        detail = "registered" if registered else "not registered (focux install --mcp)"
+        print(f"  [info] user MCP {agent}: {detail}")
 
     # attached workspace verification (universal installer contract)
     if args.target:

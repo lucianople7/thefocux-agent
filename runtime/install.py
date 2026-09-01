@@ -16,7 +16,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .attach import append_codex_toml, mcp_server_config
+from .attach import append_codex_toml, mcp_server_config, merge_mcp_json
 
 #: POSIX launcher: a python script with the repo baked in (works on
 #: macOS/Linux/Windows-python alike).
@@ -91,24 +91,68 @@ def install_launchers(
     return created
 
 
+def user_home() -> Path:
+    """The user's home (works on Windows/macOS/Linux alike)."""
+    return Path(os.environ.get("USERPROFILE") or Path.home())
+
+
+def user_mcp_paths(home: Path | None = None) -> dict[str, Path]:
+    """The user-level config file each agent reads for MCP servers."""
+    home = home or user_home()
+    return {
+        "codex": home / ".codex" / "config.toml",
+        "claude": home / ".claude.json",
+        "cursor": home / ".cursor" / "mcp.json",
+    }
+
+
 def register_user_mcp(
     repo_root: Path,
     *,
     codex_config: Path | None = None,
+    claude_config: Path | None = None,
+    cursor_config: Path | None = None,
 ) -> InstallReport:
-    """Register thefocux MCP at USER level (Codex; Claude gets instructions).
+    """Register thefocux MCP at USER level for ANY coding agent.
 
-    Codex: appends ``[mcp_servers.thefocux]`` to ``~/.codex/config.toml``
-    (safe merge - other sections preserved, never duplicated).
+    - **Codex**: appends ``[mcp_servers.thefocux]`` to ``~/.codex/config.toml``
+      (safe merge - other sections preserved, never duplicated).
+    - **Claude Code**: merges the server into ``~/.claude.json`` top-level
+      ``mcpServers`` (all other keys preserved).
+    - **Cursor**: merges into ``~/.cursor/mcp.json`` (all other servers kept).
+
+    Every merge is idempotent and non-destructive; agents pick the server up
+    on their next start. Restart Claude Code / Cursor / Codex to load it.
     """
     report = InstallReport()
     server = mcp_server_config(repo_root)
-    cfg = codex_config or (
-        Path(os.environ.get("USERPROFILE") or Path.home()) / ".codex" / "config.toml"
-    )
-    append_codex_toml(cfg, server, report)
+    paths = user_mcp_paths()
+
+    append_codex_toml(codex_config or paths["codex"], server, report)
+    merge_mcp_json(claude_config or paths["claude"], server, report,
+                   "claude ~/.claude.json")
+    merge_mcp_json(cursor_config or paths["cursor"], server, report,
+                   "cursor ~/.cursor/mcp.json")
     report.notes.append(
-        "Claude Code: run `claude mcp add thefocux -- "
-        f"{server['command']} {server['args'][0]}` to register the brain"
+        "Restart your agents (Claude Code, Cursor, Codex) to load the server."
     )
     return report
+
+
+def user_mcp_registered(home: Path | None = None) -> dict[str, bool]:
+    """Probe which agents have thefocux MCP registered at user level.
+
+    Used by `focux doctor` to verify the install without touching configs.
+    """
+    home = home or user_home()
+    out: dict[str, bool] = {}
+    for agent, path in user_mcp_paths(home).items():
+        if not path.exists():
+            out[agent] = False
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+            out[agent] = "thefocux" in text
+        except OSError:
+            out[agent] = False
+    return out

@@ -210,11 +210,11 @@ def attach(
     if with_mcp:
         server = mcp_server_config(repo_root)
         if "claude" in want:
-            _merge_mcp_json(ws / ".mcp.json", server, report,
-                            "claude .mcp.json", force=force)
+            merge_mcp_json(ws / ".mcp.json", server, report,
+                           "claude .mcp.json", force=force)
         if "cursor" in want:
-            _merge_mcp_json(ws / ".cursor" / "mcp.json", server, report,
-                            "cursor .cursor/mcp.json", force=force)
+            merge_mcp_json(ws / ".cursor" / "mcp.json", server, report,
+                           "cursor .cursor/mcp.json", force=force)
         if "codex" in want:
             append_codex_toml(ws / ".codex" / "config.toml", server, report)
     if "cursor" in want:
@@ -232,11 +232,15 @@ def attach(
     return report
 
 
-def _merge_mcp_json(
+def merge_mcp_json(
     path: Path, server: dict, report: AttachReport, label: str,
     *, force: bool = False,
 ) -> None:
-    """Merge thefocux into an existing .mcp.json (never loses other servers)."""
+    """Merge thefocux into an existing MCP JSON config (never loses servers).
+
+    Shared by `focux attach` (project-scope .mcp.json / .cursor/mcp.json) and
+    `focux install --mcp` (user-scope ~/.claude.json / ~/.cursor/mcp.json).
+    """
     existed = path.exists()
     if existed:
         try:
