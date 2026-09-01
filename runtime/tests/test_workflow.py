@@ -19,6 +19,7 @@ from runtime.workflow import (  # noqa: E402
     load_state,
     plan,
     resume_text,
+    review,
     status_text,
     validate,
     verify,
@@ -197,3 +198,74 @@ def test_validate_consistency(project: Path) -> None:
     # break it: delete SPEC.md
     (root / "SPEC.md").unlink()
     assert "SPEC.md missing" in validate(root)
+
+
+# --- optional engineering review (Automaton stage) --------------------------
+
+class _ReviewPassLLM:
+    """Stub: returns PASS for the engineering review JSON."""
+
+    def complete(self, messages) -> str:  # type: ignore[no-untyped-def]
+        return '{"verdict": "PASS", "reason": "plan is concrete and gated"}'
+
+
+class _ReviewFailLLM:
+    def complete(self, messages) -> str:  # type: ignore[no-untyped-def]
+        return '{"verdict": "REVISE", "reason": "steps are vague"}'
+
+
+def test_review_passes_to_reviewed_stage(project: Path) -> None:
+    state = frame(_agent(_SpecLLM()), "Ship it", cwd=project)
+    state = approve(state)
+    state = plan(_agent(_PlanLLM()), state)
+    assert state.stage == "planned"
+    state = review(_agent(_ReviewPassLLM()), state)
+    assert state.stage == "reviewed"
+    assert "PASS" in state.history[-1]
+    # reviewed is a valid stage
+    assert "reviewed" in STAGES
+
+
+def test_review_revise_keeps_planned(project: Path) -> None:
+    state = frame(_agent(_SpecLLM()), "Ship it", cwd=project)
+    state = approve(state)
+    state = plan(_agent(_PlanLLM()), state)
+    state = review(_agent(_ReviewFailLLM()), state)
+    assert state.stage == "planned"  # unchanged, verdict recorded
+    assert "REVISE" in state.history[-1]
+
+
+def test_review_requires_plan(project: Path) -> None:
+    state = frame(_agent(_SpecLLM()), "No plan yet", cwd=project)
+    with pytest.raises(ValueError):
+        review(_agent(_ReviewPassLLM()), state)
+
+
+# --- drift detection (Automaton status warns) --------------------------------
+
+def test_drift_report_detects_skew(tmp_path: Path) -> None:
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "AGENTS.md").write_text("# THE FOCUX contract\n", encoding="utf-8")
+    (src / "constitution.md").write_text("law\n", encoding="utf-8")
+    skill = src / "skills" / "focux-brain"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("---\nname: focux-brain\n---\n", encoding="utf-8")
+
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    (ws / "AGENTS.md").write_text("# THE FOCUX contract\n", encoding="utf-8")
+    (ws / "constitution.md").write_text("law\n", encoding="utf-8")
+    (ws / ".agents" / "skills" / "focux-brain").mkdir(parents=True)
+    (ws / ".agents" / "skills" / "focux-brain" / "SKILL.md").write_text(
+        "---\nname: focux-brain\n---\n", encoding="utf-8")
+    (ws / "memory").mkdir()
+    from runtime.memory import FocuxMemory
+    FocuxMemory(ws / "memory" / "focux.db")
+
+    from runtime.attach import drift_report
+
+    assert drift_report(ws, src) == []  # in sync
+    (ws / "AGENTS.md").write_text("# stale\n", encoding="utf-8")  # skew
+    issues = drift_report(ws, src)
+    assert any("DRIFTED" in i and "AGENTS.md" in i for i in issues)

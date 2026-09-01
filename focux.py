@@ -315,9 +315,19 @@ def cmd_attach(args: argparse.Namespace) -> int:
 
 def cmd_install(args: argparse.Namespace) -> int:
     """Global CLI install: portable launchers + (optional) user-level MCP."""
-    from runtime.install import default_prefix, install_launchers, register_user_mcp
+    from runtime.install import (
+        default_prefix, install_launchers, register_user_mcp, uninstall,
+    )
 
     prefix = Path(args.prefix).resolve() if args.prefix else default_prefix()
+    if args.uninstall:
+        ureport = uninstall(prefix, REPO_ROOT)
+        print(f"THE FOCUX CLI uninstalled from {prefix}:")
+        for item in ureport.updated:
+            print(f"  - {item}")
+        for note in ureport.notes:
+            print(f"  note: {note}")
+        return 0
     created = install_launchers(prefix, REPO_ROOT)
     print(f"THE FOCUX CLI installed to {prefix}:")
     for path in created:
@@ -719,8 +729,8 @@ def cmd_work(args: argparse.Namespace) -> int:
     """Work Harness: durable, stage-gated work (frame->plan->execute->verify)."""
     from runtime.attach import detect_workspace
     from runtime.workflow import (
-        approve, execute, frame, load_state, plan, resume_text, status_text,
-        validate, verify, work_root,
+        approve, execute, frame, load_state, plan, resume_text, review,
+        status_text, validate, verify, work_root,
     )
 
     workspace = getattr(args, "workspace", "") or detect_workspace()
@@ -729,7 +739,16 @@ def cmd_work(args: argparse.Namespace) -> int:
     refresh_focus(workspace)
 
     if action == "status":
-        return _out(args, [status_text(root)], {"work": status_text(root)})
+        from runtime.attach import drift_report
+
+        text = status_text(root)
+        drift = drift_report(Path.cwd(), REPO_ROOT)
+        lines = [text]
+        if drift:
+            lines += ["", "DRIFT warnings (Automaton-style):"]
+            lines += [f"  - {d}" for d in drift]
+            lines += ["  (durable .focux history is preserved regardless)"]
+        return _out(args, lines, {"work": text, "drift": drift})
 
     if action == "resume":
         return _out(args, [resume_text(root)], {"work": resume_text(root)})
@@ -769,7 +788,21 @@ def cmd_work(args: argparse.Namespace) -> int:
         if state is None:
             return _out_err(args, "no work - run `focux work frame '<objective>'`")
         state = plan(agent, state, workspace=workspace)
-        lines = [f"PLANNED -> {state.plan_path}", "next: focux work execute"]
+        lines = [f"PLANNED -> {state.plan_path}",
+                 "optional: focux work review (engineering review)"]
+        return _out(args, lines, state.as_dict())
+
+    if action == "review":
+        if state is None:
+            return _out_err(args, "no work - run `focux work frame '<objective>'`")
+        try:
+            state = review(agent, state, workspace=workspace)
+        except ValueError as exc:
+            return _out_err(args, f"cannot review: {exc}")
+        lines = ([f"ENGINEERING REVIEW PASS - stage: {state.stage}"]
+                 if state.stage == "reviewed"
+                 else [f"ENGINEERING REVIEW REVISE - plan unchanged "
+                       f"({state.history[-1]})"])
         return _out(args, lines, state.as_dict())
 
     if action == "execute":
@@ -1148,6 +1181,10 @@ def main(argv: list[str] | None = None) -> int:
     wplan = wsub.add_parser("plan", parents=[_JSON_PARENT], help="write PLAN.md (gated steps)")
     wplan.add_argument("--workspace", default="")
     wplan.set_defaults(func=cmd_work)
+    wreview = wsub.add_parser("review", parents=[_JSON_PARENT],
+                              help="optional engineering review (plan -> reviewed)")
+    wreview.add_argument("--workspace", default="")
+    wreview.set_defaults(func=cmd_work)
     wexec = wsub.add_parser("execute", parents=[_JSON_PARENT], help="gate every plan step before doing it")
     wexec.add_argument("--workspace", default="")
     wexec.set_defaults(func=cmd_work)
@@ -1192,6 +1229,8 @@ def main(argv: list[str] | None = None) -> int:
                          help="bin dir (default ~/.thefocux/bin)")
     install.add_argument("--mcp", action="store_true",
                          help="register thefocux MCP at user level (Codex)")
+    install.add_argument("--uninstall", action="store_true",
+                         help="remove launchers + user MCP; .focux history preserved")
     install.set_defaults(func=cmd_install)
 
     hb = sub.add_parser("heartbeat", parents=[_JSON_PARENT], help="survival tier + roles due + approvals")

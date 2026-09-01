@@ -15,6 +15,7 @@ from runtime.install import (  # noqa: E402
     default_prefix,
     install_launchers,
     register_user_mcp,
+    uninstall,
     user_mcp_registered,
 )
 
@@ -124,3 +125,31 @@ def test_user_mcp_registered_probe(tmp_path: Path) -> None:
         '{"mcpServers": {"thefocux": {}}}', encoding="utf-8")
     status = user_mcp_registered(home)
     assert status == {"codex": True, "claude": False, "cursor": True}
+
+
+def test_uninstall_removes_surface_preserves_history(tmp_path: Path) -> None:
+    """Automaton rule: uninstall removes launchers + MCP, keeps .focux."""
+    prefix = tmp_path / "bin"
+    install_launchers(prefix, REPO)
+    assert (prefix / "focux").exists()
+
+    # simulate durable history that must survive
+    history = tmp_path / ".focux" / "work"
+    history.mkdir(parents=True)
+    (history / "SPEC.md").write_text("# durable", encoding="utf-8")
+
+    cfg = tmp_path / "codex.toml"
+    claude = tmp_path / "claude.json"
+    cursor = tmp_path / "cursor.json"
+    kwargs = dict(codex_config=cfg, claude_config=claude, cursor_config=cursor)
+    register_user_mcp(REPO, **kwargs)
+    assert "[mcp_servers.thefocux]" in cfg.read_text(encoding="utf-8")
+
+    report = uninstall(prefix, REPO, **kwargs)
+    assert not (prefix / "focux").exists()
+    assert not (prefix / "focux.cmd").exists()
+    assert "[mcp_servers.thefocux]" not in cfg.read_text(encoding="utf-8")
+    assert "thefocux" not in json.loads(claude.read_text(encoding="utf-8"))[
+        "mcpServers"]
+    assert (history / "SPEC.md").exists()  # history preserved
+    assert any("preserved" in n for n in report.notes)

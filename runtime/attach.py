@@ -375,3 +375,38 @@ def verify_attached(workspace: Path, repo_root: Path) -> VerifyReport:
     for label, probe in probes:
         rep.add(label, probe.exists(), critical=False)
     return rep
+
+
+def drift_report(workspace: Path, repo_root: Path) -> list[str]:
+    """Automaton-style drift: installed contract copies vs the source.
+
+    Warnings when: a contract file is MISSING (no receipt), its content
+    drifted from the source (version skew), or an expected file is absent.
+    Never fatal: the durable .focux history is preserved regardless.
+    """
+    ws = workspace.resolve()
+    issues: list[str] = []
+
+    def check_copy(name: str, src: Path, dst: Path, marker: str) -> None:
+        if not dst.exists():
+            issues.append(f"{name}: MISSING (no install receipt - run `focux attach`")
+            return
+        try:
+            if src.read_text(encoding="utf-8") != dst.read_text(encoding="utf-8"):
+                issues.append(f"{name}: DRIFTED from source "
+                              f"(re-run `focux attach --force`)")
+        except OSError:
+            issues.append(f"{name}: unreadable")
+        if marker not in dst.read_text(encoding="utf-8", errors="replace"):
+            issues.append(f"{name}: invalid (missing marker '{marker}')")
+
+    check_copy("AGENTS.md", repo_root / "AGENTS.md", ws / "AGENTS.md",
+               "THE FOCUX")
+    check_copy("focux-brain skill", repo_root / "skills" / "focux-brain" / "SKILL.md",
+               ws / ".agents" / "skills" / "focux-brain" / "SKILL.md",
+               "name: focux-brain")
+    if not (ws / "constitution.md").exists():
+        issues.append("constitution.md: MISSING")
+    if not (ws / "memory" / "focux.db").exists():
+        issues.append("memory/focux.db: MISSING (shared memory not initialized)")
+    return issues

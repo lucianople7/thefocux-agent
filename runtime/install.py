@@ -156,3 +156,59 @@ def user_mcp_registered(home: Path | None = None) -> dict[str, bool]:
         except OSError:
             out[agent] = False
     return out
+
+
+def uninstall(
+    prefix: Path,
+    repo_root: Path,
+    *,
+    codex_config: Path | None = None,
+    claude_config: Path | None = None,
+    cursor_config: Path | None = None,
+) -> InstallReport:
+    """Remove the CLI launchers and the user-level MCP entries.
+
+    Automaton rule: the durable `.focux/` history (work, focus, map,
+    harnesses, lessons) is ALWAYS preserved - only the install surface is
+    removed.
+    """
+    import json
+
+    report = InstallReport(prefix=prefix.resolve())
+    # 1) launchers
+    for name in ("focux", "focux-web"):
+        for suffix in ("", ".cmd"):
+            p = prefix / (name + suffix)
+            if p.exists():
+                p.unlink()
+                report.updated.append(f"removed {p}")
+    # 2) codex toml section
+    paths = user_mcp_paths()
+    codex = codex_config or paths["codex"]
+    if codex.exists():
+        text = codex.read_text(encoding="utf-8")
+        if "[mcp_servers.thefocux]" in text:
+            idx = text.find("[mcp_servers.thefocux]")
+            end = text.find("\n[", idx + 1)
+            end = len(text) if end == -1 else end
+            codex.write_text(text[:idx].rstrip() + "\n", encoding="utf-8")
+            report.updated.append(f"removed thefocux from {codex}")
+    # 3) claude.json + cursor json: drop mcpServers.thefocux
+    for cfg, label in ((claude_config or paths["claude"], "claude ~/.claude.json"),
+                       (cursor_config or paths["cursor"], "cursor ~/.cursor/mcp.json")):
+        if not cfg.exists():
+            continue
+        try:
+            data = json.loads(cfg.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            report.notes.append(f"{label}: invalid JSON, left untouched")
+            continue
+        servers = data.get("mcpServers", {})
+        if "thefocux" in servers:
+            del servers["thefocux"]
+            cfg.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            report.updated.append(f"removed thefocux from {label}")
+    report.notes.append(
+        ".focux history preserved (work, focus, map, harnesses, lessons)."
+    )
+    return report

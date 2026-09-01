@@ -25,8 +25,8 @@ from pathlib import Path
 from typing import Any
 
 #: The stage machine. `verified` is terminal.
-STAGES: tuple[str, ...] = ("framed", "planned", "executing", "verifying",
-                           "verified")
+STAGES: tuple[str, ...] = ("framed", "planned", "reviewed", "executing",
+                           "verifying", "verified")
 
 STATE_FILE = "current.json"
 
@@ -188,6 +188,61 @@ def plan(agent, state: WorkState, *, workspace: str = "default") -> WorkState:
     return state.bump("planned", "plan written")
 
 
+_REVIEW_PROMPT = """You are the engineering reviewer for this work. Review the
+SPEC and PLAN below. Reply with ONLY this JSON:
+{{"verdict": "PASS"|"REVISE", "reason": "<one sentence>"}}
+Rules: PASS when the plan is concrete, gated, verifiable and matches the
+SPEC's success criteria; REVISE when it is vague, unverifiable, or drifts
+from the SPEC. Be strict - a world-class engineer would not execute a plan
+that fails review.
+
+SPEC:
+{spec}
+
+PLAN:
+{plan}"""
+
+
+def review(agent, state: WorkState, *, workspace: str = "default") -> WorkState:
+    """Optional engineering review between plan and execute (Automaton stage).
+
+    - domain `content`: the Expert Panel quality review on the SPEC+PLAN.
+    - domain `code`: a strict engineering review (LLM judge).
+    PASS -> stage `reviewed`; REVISE -> stays `planned` with the verdict
+    recorded. Optional by design: execute never requires it.
+    """
+    if state.stage not in ("planned", "reviewed"):
+        raise ValueError(f"review requires a plan (stage: {state.stage})")
+    spec = state.spec_path.read_text(encoding="utf-8") \
+        if state.spec_path.exists() else ""
+    plan = state.plan_path.read_text(encoding="utf-8") \
+        if state.plan_path.exists() else ""
+    if state.domain == "content":
+        from .experts import review_draft
+
+        verdict = review_draft(agent, "content", f"{spec}\n{plan}", workspace)
+        passed, note = verdict.passed, verdict.verdict
+    else:
+        text = agent.draft(
+            _REVIEW_PROMPT.format(spec=spec[:4000], plan=plan[:4000]),
+            system="You are THE FOCUX BRAIN's strict engineering reviewer.",
+        )
+        import json
+
+        try:
+            start, end = text.find("{"), text.rfind("}")
+            data = json.loads(text[start : end + 1]) if end > start else {}
+            passed = str(data.get("verdict", "REVISE")) == "PASS"
+            note = str(data.get("reason", ""))[:160]
+        except json.JSONDecodeError:
+            passed, note = False, "reviewer output unparseable"
+    if passed:
+        return state.bump("reviewed", f"engineering review PASS ({note})")
+    state.history.append(f"{_now()} [planned] engineering review REVISE: {note}")
+    state.save()
+    return state
+
+
 def execute(agent, state: WorkState, *, workspace: str = "default") -> list[dict[str, Any]]:
     """execute: gate every plan step BEFORE the work is done.
 
@@ -294,7 +349,13 @@ def status_text(root: Path) -> str:
         )
     if state.stage == "planned":
         return (
-            f"Plan ready ({state.plan_path}). Gate it: `focux work execute`. "
+            f"Plan ready ({state.plan_path}). Optional engineering review: "
+            "`focux work review`; then gate it: `focux work execute`. "
+            "REVIEW steps need your approval."
+        )
+    if state.stage == "reviewed":
+        return (
+            f"Plan reviewed and PASSED. Gate it: `focux work execute`. "
             "Then do the ALLOW steps; REVIEW steps need your approval."
         )
     if state.stage == "executing":
@@ -323,7 +384,8 @@ def resume_text(root: Path) -> str:
         lines.append(f"  ROADMAP: {state.roadmap_path}")
     lines.append("  next: " + {
         "framed": "`focux work approve` (then plan)",
-        "planned": "`focux work execute`",
+        "planned": "`focux work review` (optional) then `focux work execute`",
+        "reviewed": "`focux work execute`",
         "executing": "continue the ALLOW steps; `focux work verify` when done",
         "verifying": "`focux work verify` to finish",
         "verified": "done - frame the next objective",
@@ -341,8 +403,8 @@ def validate(root: Path) -> list[str]:
         issues.append("SPEC.md missing")
     if state.stage not in STAGES:
         issues.append(f"unknown stage: {state.stage}")
-    if state.stage in ("planned", "executing", "verifying", "verified") \
-            and not state.plan_path.exists():
+    if state.stage in ("planned", "reviewed", "executing", "verifying",
+                       "verified") and not state.plan_path.exists():
         issues.append("PLAN.md missing but stage requires it")
     if state.stage == "verified" and not state.roadmap_path.exists():
         issues.append("ROADMAP.md missing for a verified change")

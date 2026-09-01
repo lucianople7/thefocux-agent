@@ -255,11 +255,19 @@ focux work status             # honestidad al iniciar sesion: que toca ahora
 focux work frame '<objetivo>' # SPEC.md (borrador); TU lo apruebas = product review
 focux work approve            # ningun modelo suplanta tu juicio de producto
 focux work plan               # PLAN.md con pasos gateados
+focux work review             # engineering review OPCIONAL (plan -> reviewed)
 focux work execute            # cada paso pasa por el money-gate ANTES
 focux work verify             # checks reales -> verified (terminal, harness off)
 focux work resume             # re-entrar desde una sesion fresca
 focux work validate           # consistencia del estado
 ```
+
+Reglas del harness (paridad Automaton completa):
+- **`status` también avisa de DERIVA** — contrato attached que se desvió de la
+  fuente (AGENTS.md/skill faltantes o desactualizados): "DRIFT warnings" +
+  sugerencia `focux attach --force`. La historia `.focux` nunca se toca.
+- **`install --uninstall`** — quita launchers + MCP de usuario y **preserva
+  la historia durable** (work, focus, map, harnesses, lessons).
 
 Reglas del harness:
 - **Lo que cabe en una sesión se hace directo** — el harness lo dice al
