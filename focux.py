@@ -55,9 +55,23 @@ def build_llm() -> LLMClient:
     )
 
 
-def build_agent() -> FocuxAgent:
+def build_agent(workspace: str | None = None) -> FocuxAgent:
+    """Agent bound to the shared SQLite memory and the current workspace.
+
+    The workspace is auto-detected from the nearest `.focux-workspace`
+    marker (declared by `focux attach <dir> --workspace <name>`), so every
+    command inside an attached project uses that project's memory namespace.
+    """
+    from runtime.attach import detect_workspace
+    from runtime.memory import FocuxMemory
+
+    ws = workspace or detect_workspace()
     skills = load_skills(REPO_ROOT / "skills")
-    return FocuxAgent(llm=build_llm(), gate=default_gate(), skills=skills)
+    memory = FocuxMemory(REPO_ROOT / "memory" / "focux.db")
+    return FocuxAgent(
+        llm=build_llm(), gate=default_gate(), skills=skills,
+        memory=memory, workspace=ws,
+    )
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -184,6 +198,7 @@ def cmd_attach(args: argparse.Namespace) -> int:
         agents=agents,
         force=args.force,
         with_mcp=not args.no_mcp,
+        workspace_name=args.workspace,
     )
     target = Path(args.dir).resolve()
     if not report.changed:
@@ -209,6 +224,46 @@ def cmd_attach(args: argparse.Namespace) -> int:
     print("skill, shares the SQLite memory, and can call the MCP tools.")
     print("Configure: .env -> add your API key. Verify: focux doctor --target <dir>")
     return 0
+
+
+def cmd_install(args: argparse.Namespace) -> int:
+    """Global CLI install: portable launchers + (optional) user-level MCP."""
+    from runtime.install import default_prefix, install_launchers, register_user_mcp
+
+    prefix = Path(args.prefix).resolve() if args.prefix else default_prefix()
+    created = install_launchers(prefix, REPO_ROOT)
+    print(f"THE FOCUX CLI installed to {prefix}:")
+    for path in created:
+        print(f"  + {path}")
+    print("\nAdd it to your PATH (once):")
+    if os.name == "nt":
+        print(f'  setx PATH "%PATH%;{prefix}"')
+    else:
+        print(f'  export PATH="{prefix}:$PATH"')
+    if args.mcp:
+        report = register_user_mcp(REPO_ROOT)
+        print("\nMCP registration:")
+        for item in report.created:
+            print(f"  + {item}")
+        for item in report.updated:
+            print(f"  ~ {item}")
+        for item in report.skipped:
+            print(f"  = {item}")
+        for note in report.notes:
+            print(f"  note: {note}")
+    # verify: the launcher answers
+    import subprocess
+
+    launcher = prefix / "focux"
+    probe = subprocess.run(
+        [sys.executable, str(launcher), "--help"],
+        capture_output=True, text=True, timeout=60,
+    )
+    if probe.returncode == 0 and "usage" in probe.stdout:
+        print(f"\nVERIFIED: {launcher} answers (focux --help -> OK)")
+        return 0
+    print(f"\nWARNING: launcher probe failed (rc={probe.returncode})")
+    return 1
 
 
 def cmd_heartbeat(args: argparse.Namespace) -> int:
@@ -255,7 +310,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     # memory
     mem = agent.memory
     if mem is not None:
-        check("memory", True, f"workspace '{agent.workspace}'")
+        check("memory", True, f"workspace '{agent.workspace}' (SQLite)")
     else:
         check("memory", True, "not attached (optional)")
 
@@ -315,10 +370,12 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 
 def cmd_evolve(args: argparse.Namespace) -> int:
     """Daily evolution cycle: analyze executed work, propose improvements."""
+    from runtime.attach import detect_workspace
     from runtime.evolution import format_report, run_daily_evolution
 
+    workspace = args.workspace or detect_workspace()
     report = run_daily_evolution(
-        workspace=args.workspace,
+        workspace=workspace,
         memory_dir=REPO_ROOT / "memory",
         drafts_dir=REPO_ROOT / "skills-draft",
     )
@@ -370,12 +427,14 @@ def cmd_absorb(args: argparse.Namespace) -> int:
     """Absorb REAL data from GitHub / Hugging Face / X into memory."""
     import os
 
+    from runtime.attach import detect_workspace
     from runtime.ingest import absorb, format_absorb, store_results
 
     sources = tuple(s.strip().lower() for s in args.sources.split(",") if s.strip())
     if not sources:
         print("usage: focux absorb --sources github,huggingface,x [--query 'ai agent']")
         return 2
+    workspace = args.workspace or detect_workspace()
     x_bearer = os.environ.get("X_BEARER_TOKEN", "")
     results = absorb(
         sources=sources,
@@ -391,11 +450,11 @@ def cmd_absorb(args: argparse.Namespace) -> int:
 
     mem = FocuxMemory(REPO_ROOT / "memory" / "focux.db")
     try:
-        stored = store_results(results, mem, workspace=args.workspace)
+        stored = store_results(results, mem, workspace=workspace)
     finally:
         mem.close()
     ok_sources = [s for s, r in results.items() if r.ok]
-    print(f"\nabsorbed into memory ({args.workspace}): {stored} items "
+    print(f"\nabsorbed into memory ({workspace}): {stored} items "
           f"from {', '.join(ok_sources) or 'no source'}")
     return 0 if ok_sources else 1
 
@@ -450,11 +509,21 @@ def main(argv: list[str] | None = None) -> int:
     attach.add_argument("dir", help="target directory")
     attach.add_argument("--agents", default="all",
                         help="comma list: all,claude,codex,cursor,aider,copilot,gemini")
+    attach.add_argument("--workspace", default="",
+                        help="business workspace name (memory namespace); "
+                             "defaults to the directory name")
     attach.add_argument("--force", action="store_true",
                         help="refresh files THE FOCUX owns (safe merges for configs)")
     attach.add_argument("--no-mcp", action="store_true",
                         help="skip MCP server registration")
     attach.set_defaults(func=cmd_attach)
+
+    install = sub.add_parser("install", help="global CLI: portable launchers on PATH (+ MCP)")
+    install.add_argument("--prefix", default="",
+                         help="bin dir (default ~/.thefocux/bin)")
+    install.add_argument("--mcp", action="store_true",
+                         help="register thefocux MCP at user level (Codex)")
+    install.set_defaults(func=cmd_install)
 
     hb = sub.add_parser("heartbeat", help="survival tier + roles due + approvals")
     hb.add_argument("--revenue", type=float, default=0.0)
@@ -469,7 +538,8 @@ def main(argv: list[str] | None = None) -> int:
     doctor.set_defaults(func=cmd_doctor)
 
     evolve = sub.add_parser("evolve", help="daily evolution cycle (analyze -> improve)")
-    evolve.add_argument("--workspace", default="default")
+    evolve.add_argument("--workspace", default="",
+                        help="workspace (default: auto-detect from .focux-workspace)")
     evolve.set_defaults(func=cmd_evolve)
 
     modules = sub.add_parser("modules", help="modular system: organs + integrity check")
@@ -490,7 +560,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="comma list: github,huggingface,x")
     absorb.add_argument("--query", default="ai agent", help="search query")
     absorb.add_argument("--limit", type=int, default=10)
-    absorb.add_argument("--workspace", default="default")
+    absorb.add_argument("--workspace", default="",
+                        help="workspace (default: auto-detect from .focux-workspace)")
     absorb.set_defaults(func=cmd_absorb)
 
     args = parser.parse_args(argv)

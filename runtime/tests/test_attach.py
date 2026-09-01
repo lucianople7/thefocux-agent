@@ -13,6 +13,7 @@ sys.path.insert(0, str(REPO))
 from runtime.attach import (  # noqa: E402
     ALL_AGENTS,
     attach,
+    detect_workspace,
     mcp_server_config,
     verify_attached,
 )
@@ -99,12 +100,13 @@ def test_attach_cursor_copilot_aider(tmp_path: Path) -> None:
 
 def test_attach_all_covers_every_agent(tmp_path: Path) -> None:
     report = attach(tmp_path, REPO, agents=("all",))
-    assert "claude .mcp.json" in report.created
-    assert "cursor .cursor/mcp.json" in report.created
-    assert "codex .codex/config.toml" in report.created
-    assert ".cursor/rules/focux.mdc" in report.created
-    assert ".aider.conf.yml" in report.created
-    assert ".github/copilot-instructions.md" in report.created
+    created = " ".join(report.created)
+    assert "claude .mcp.json" in created
+    assert "cursor .cursor/mcp.json" in created
+    assert "config.toml" in created  # codex section (label is the path)
+    assert ".cursor/rules/focux.mdc" in created
+    assert ".aider.conf.yml" in created
+    assert ".github/copilot-instructions.md" in created
     assert set(ALL_AGENTS) >= {"claude", "codex", "cursor", "aider",
                                "copilot", "gemini"}
 
@@ -149,3 +151,52 @@ def test_verify_detects_stale_agents_md(tmp_path: Path) -> None:
     stale = [c for c in rep.checks if c.label == "AGENTS.md is THE FOCUX contract"]
     assert stale and not stale[0].ok
     assert not rep.ok
+
+
+# --- workspace declaration (memory namespace) --------------------------------
+
+def test_attach_writes_workspace_marker(tmp_path: Path) -> None:
+    attach(tmp_path, REPO, workspace_name="mi-negocio")
+    marker = tmp_path / ".focux-workspace"
+    assert marker.exists()
+    assert marker.read_text(encoding="utf-8").strip() == "mi-negocio"
+
+
+def test_attach_default_workspace_is_dir_name(tmp_path: Path) -> None:
+    target = tmp_path / "mi-negocio"
+    attach(target, REPO)
+    assert (target / ".focux-workspace").read_text(
+        encoding="utf-8").strip() == "mi-negocio"
+
+
+def test_attach_preserves_existing_workspace(tmp_path: Path) -> None:
+    attach(tmp_path, REPO, workspace_name="primero")
+    second = attach(tmp_path, REPO)  # no explicit workspace -> preserve
+    assert (tmp_path / ".focux-workspace").read_text(
+        encoding="utf-8").strip() == "primero"
+    assert any("workspace" in s for s in second.skipped)
+
+
+def test_attach_updates_workspace_with_flag(tmp_path: Path) -> None:
+    attach(tmp_path, REPO, workspace_name="primero")
+    attach(tmp_path, REPO, workspace_name="segundo")
+    assert (tmp_path / ".focux-workspace").read_text(
+        encoding="utf-8").strip() == "segundo"
+
+
+def test_detect_workspace_walks_up(tmp_path: Path) -> None:
+    attach(tmp_path, REPO, workspace_name="neg")
+    deep = tmp_path / "a" / "b"
+    deep.mkdir(parents=True)
+    assert detect_workspace(deep) == "neg"
+
+
+def test_detect_workspace_default(tmp_path: Path) -> None:
+    assert detect_workspace(tmp_path) == "default"
+
+
+def test_verify_reports_workspace(tmp_path: Path) -> None:
+    attach(tmp_path, REPO, workspace_name="neg")
+    rep = verify_attached(tmp_path, REPO)
+    ws = [c for c in rep.checks if c.label == "workspace declared"]
+    assert ws and ws[0].ok and ws[0].detail == "'neg'"

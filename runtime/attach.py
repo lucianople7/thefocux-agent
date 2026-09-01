@@ -34,6 +34,27 @@ AGENTS: dict[str, str] = {
 
 ALL_AGENTS: tuple[str, ...] = tuple(AGENTS)
 
+#: Marker file that declares the business workspace name of an attached dir.
+#: The runtime walks up from CWD to find it, so every command in an attached
+#: project automatically uses that project's memory namespace.
+WORKSPACE_MARKER = ".focux-workspace"
+
+
+def detect_workspace(start: Path | None = None) -> str:
+    """Business workspace from the nearest .focux-workspace marker (walk up).
+
+    Attached projects declare their workspace (`focux attach <dir>
+    --workspace <name>`); every runtime command in that tree automatically
+    uses it for memory namespacing. Defaults to ``default``.
+    """
+    cur = (start or Path.cwd()).resolve()
+    for directory in (cur, *cur.parents):
+        marker = directory / WORKSPACE_MARKER
+        if marker.exists():
+            name = marker.read_text(encoding="utf-8").strip()
+            return name or "default"
+    return "default"
+
 _MEM_README = (
     "FOCUX BRAIN shared memory: metrics.md, decisions.md, receipts/, "
     "focux.db (SQLite), selfmod.jsonl (audit)."
@@ -96,16 +117,23 @@ class AttachReport:
 
 
 def attach(
-    workspace: Path,
+    target: Path,
     repo_root: Path,
     *,
     agents: tuple[str, ...] = ("all",),
     force: bool = False,
     with_mcp: bool = True,
+    workspace_name: str = "",
 ) -> AttachReport:
-    """Mount THE FOCUX BRAIN on ``workspace`` for the requested agents."""
+    """Mount THE FOCUX BRAIN on ``target`` for the requested agents.
+
+    ``workspace_name`` declares the business workspace (memory namespace) of
+    the attached dir; defaults to the directory's own name. Idempotent: an
+    existing declaration is preserved unless ``workspace_name`` or ``force``
+    explicitly overrides it.
+    """
     report = AttachReport()
-    ws = workspace.resolve()
+    ws = target.resolve()
     ws.mkdir(parents=True, exist_ok=True)
 
     def write(dst: Path, content: str, label: str) -> None:
@@ -117,6 +145,21 @@ def attach(
         dst.parent.mkdir(parents=True, exist_ok=True)
         dst.write_text(content, encoding="utf-8")
         (report.updated if existed else report.created).append(label)
+
+    # --- business workspace declaration (memory namespace) -------------------
+    declared = (workspace_name or "").strip() or ws.name
+    marker = ws / WORKSPACE_MARKER
+    if marker.exists():
+        if workspace_name.strip() or force:
+            existed = True
+            marker.write_text(declared, encoding="utf-8")
+            report.updated.append(f"{WORKSPACE_MARKER} ({declared})")
+        else:
+            report.skipped.append(f"{WORKSPACE_MARKER} (workspace "
+                                  f"'{marker.read_text(encoding='utf-8').strip() or 'default'}')")
+    else:
+        marker.write_text(declared, encoding="utf-8")
+        report.created.append(f"{WORKSPACE_MARKER} (workspace '{declared}')")
 
     # --- universal contract (read by EVERY agent) ---------------------------
     write(ws / "AGENTS.md",
@@ -173,7 +216,7 @@ def attach(
             _merge_mcp_json(ws / ".cursor" / "mcp.json", server, report,
                             "cursor .cursor/mcp.json", force=force)
         if "codex" in want:
-            _append_codex_toml(ws / ".codex" / "config.toml", server, report)
+            append_codex_toml(ws / ".codex" / "config.toml", server, report)
     if "cursor" in want:
         write(ws / ".cursor" / "rules" / "focux.mdc", _CURSOR_RULE,
               ".cursor/rules/focux.mdc")
@@ -215,10 +258,14 @@ def _merge_mcp_json(
     (report.updated if existed else report.created).append(label)
 
 
-def _append_codex_toml(
+def append_codex_toml(
     path: Path, server: dict, report: AttachReport
 ) -> None:
-    """Append the MCP section to Codex config (preserves other sections)."""
+    """Append the MCP section to a Codex config (preserves other sections).
+
+    Shared by `focux attach` (project-scope `.codex/config.toml`) and
+    `focux install --mcp` (user-scope `~/.codex/config.toml`).
+    """
     bridge = server["args"][0].replace("\\", "/")  # TOML-safe path
     block = (
         "\n[mcp_servers.thefocux]\n"
@@ -229,14 +276,14 @@ def _append_codex_toml(
     if existed:
         text = path.read_text(encoding="utf-8")
         if "[mcp_servers.thefocux]" in text:
-            report.skipped.append("codex .codex/config.toml (section present)")
+            report.skipped.append(f"{path} (section present)")
             return
         path.write_text(text.rstrip() + "\n" + block, encoding="utf-8")
-        report.updated.append("codex .codex/config.toml (MCP section merged)")
+        report.updated.append(f"{path} (MCP section merged)")
     else:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(block.lstrip("\n"), encoding="utf-8")
-        report.created.append("codex .codex/config.toml")
+        report.created.append(str(path))
 
 
 # ---------------------------------------------------------------------------
@@ -282,6 +329,16 @@ def verify_attached(workspace: Path, repo_root: Path) -> VerifyReport:
                 "name: focux-brain" in skill.read_text(encoding="utf-8"))
 
     rep.add("constitution present", (ws / "constitution.md").exists())
+
+    marker = ws / WORKSPACE_MARKER
+    if marker.exists():
+        rep.add("workspace declared", True,
+                f"'{marker.read_text(encoding='utf-8').strip() or 'default'}'",
+                critical=False)
+    else:
+        rep.add("workspace declared", False,
+                "missing - attach with --workspace (uses 'default')",
+                critical=False)
 
     gitignore = ws / ".gitignore"
     rep.add(".gitignore ignores secrets",

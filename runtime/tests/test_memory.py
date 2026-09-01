@@ -122,3 +122,32 @@ def test_llm_gate_used_when_configured(tmp_path: Path) -> None:
     m.close()
     assert should
     assert "client history" in query
+
+
+def test_memory_thread_safe(tmp_path: Path) -> None:
+    """Regression: the webui (ThreadingHTTPServer) and MCP hosts build the
+    agent in one worker thread and query it in another. A shared FocuxMemory
+    must never raise the cross-thread ProgrammingError."""
+    import threading
+
+    m = FocuxMemory(tmp_path / "focux.db")
+    errors: list[BaseException] = []
+
+    def worker(i: int) -> None:
+        try:
+            for j in range(20):
+                m.remember_event("ws", f"kind-{i}", {"n": j})
+                m.remember_fact("ws", f"k{i}", f"v{j}")
+                m.recent_events("ws")
+                m.facts("ws")
+                m.procedures("ws")
+        except BaseException as exc:  # noqa: BLE001 - collect, assert after
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    m.close()
+    assert not errors, errors

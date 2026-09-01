@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import threading
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -126,42 +127,51 @@ class FocuxMemory:
     ) -> None:
         self._path = Path(db_path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(self._path))
+        # check_same_thread=False: the memory is served by threaded hosts
+        # (webui ThreadingHTTPServer, MCP hosts) that build the agent in one
+        # worker thread and query it in another. A lock serializes all DB
+        # access so interleaved execute/commit sequences can never corrupt.
+        self._lock = threading.Lock()
+        self._conn = sqlite3.connect(str(self._path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS episodic (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                workspace TEXT NOT NULL,
-                kind TEXT NOT NULL,
-                data TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_episodic_ws ON episodic(workspace, created_at);
-            CREATE TABLE IF NOT EXISTS semantic (
-                workspace TEXT NOT NULL,
-                key TEXT NOT NULL,
-                value TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                PRIMARY KEY (workspace, key)
-            );
-            CREATE TABLE IF NOT EXISTS procedural (
-                workspace TEXT NOT NULL,
-                name TEXT NOT NULL,
-                steps TEXT NOT NULL,
-                success_count INTEGER NOT NULL DEFAULT 0,
-                fail_count INTEGER NOT NULL DEFAULT 0,
-                PRIMARY KEY (workspace, name)
-            );
-            """
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            self._conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS episodic (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    workspace TEXT NOT NULL,
+                    kind TEXT NOT NULL,
+                    data TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_episodic_ws ON episodic(workspace, created_at);
+                CREATE TABLE IF NOT EXISTS semantic (
+                    workspace TEXT NOT NULL,
+                    key TEXT NOT NULL,
+                    value TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY (workspace, key)
+                );
+                CREATE TABLE IF NOT EXISTS procedural (
+                    workspace TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    steps TEXT NOT NULL,
+                    success_count INTEGER NOT NULL DEFAULT 0,
+                    fail_count INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY (workspace, name)
+                );
+                """
+            )
+            self._conn.commit()
         self._gate_llm = gate_llm
         self._gate_model = gate_model
 
     def close(self) -> None:
-        self._conn.close()
+        with self._lock:
+            if self._conn is not None:
+                self._conn.close()
+                self._conn = None
 
     # -- episodic ------------------------------------------------------------
 
@@ -171,21 +181,23 @@ class FocuxMemory:
         event = MemoryEvent(
             workspace=workspace, kind=kind, data=data, created_at=_now()
         )
-        self._conn.execute(
-            "INSERT INTO episodic (workspace, kind, data, created_at) VALUES (?,?,?,?)",
-            (workspace, kind, json.dumps(data, ensure_ascii=False), event.created_at),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO episodic (workspace, kind, data, created_at) VALUES (?,?,?,?)",
+                (workspace, kind, json.dumps(data, ensure_ascii=False), event.created_at),
+            )
+            self._conn.commit()
         return event
 
     def recent_events(
         self, workspace: str, limit: int = 10
     ) -> list[MemoryEvent]:
-        rows = self._conn.execute(
-            "SELECT workspace, kind, data, created_at FROM episodic "
-            "WHERE workspace=? ORDER BY created_at DESC LIMIT ?",
-            (workspace, limit),
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT workspace, kind, data, created_at FROM episodic "
+                "WHERE workspace=? ORDER BY created_at DESC LIMIT ?",
+                (workspace, limit),
+            ).fetchall()
         return [
             MemoryEvent(
                 workspace=r["workspace"], kind=r["kind"],
@@ -198,22 +210,24 @@ class FocuxMemory:
 
     def remember_fact(self, workspace: str, key: str, value: str) -> MemoryFact:
         fact = MemoryFact(workspace=workspace, key=key, value=value, updated_at=_now())
-        self._conn.execute(
-            "INSERT INTO semantic (workspace, key, value, updated_at) "
-            "VALUES (?,?,?,?) "
-            "ON CONFLICT(workspace, key) DO UPDATE SET "
-            "value=excluded.value, updated_at=excluded.updated_at",
-            (workspace, key, value, fact.updated_at),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO semantic (workspace, key, value, updated_at) "
+                "VALUES (?,?,?,?) "
+                "ON CONFLICT(workspace, key) DO UPDATE SET "
+                "value=excluded.value, updated_at=excluded.updated_at",
+                (workspace, key, value, fact.updated_at),
+            )
+            self._conn.commit()
         return fact
 
     def facts(self, workspace: str) -> list[MemoryFact]:
-        rows = self._conn.execute(
-            "SELECT workspace, key, value, updated_at FROM semantic "
-            "WHERE workspace=? ORDER BY updated_at DESC",
-            (workspace,),
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT workspace, key, value, updated_at FROM semantic "
+                "WHERE workspace=? ORDER BY updated_at DESC",
+                (workspace,),
+            ).fetchall()
         return [
             MemoryFact(
                 workspace=r["workspace"], key=r["key"], value=r["value"],
@@ -227,29 +241,32 @@ class FocuxMemory:
     def learn_procedure(
         self, workspace: str, name: str, steps: tuple[str, ...]
     ) -> Procedure:
-        self._conn.execute(
-            "INSERT INTO procedural (workspace, name, steps) VALUES (?,?,?) "
-            "ON CONFLICT(workspace, name) DO UPDATE SET steps=excluded.steps",
-            (workspace, name, json.dumps(list(steps), ensure_ascii=False)),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO procedural (workspace, name, steps) VALUES (?,?,?) "
+                "ON CONFLICT(workspace, name) DO UPDATE SET steps=excluded.steps",
+                (workspace, name, json.dumps(list(steps), ensure_ascii=False)),
+            )
+            self._conn.commit()
         return Procedure(workspace=workspace, name=name, steps=steps)
 
     def record_outcome(self, workspace: str, name: str, *, success: bool) -> None:
         col = "success_count" if success else "fail_count"
-        self._conn.execute(
-            f"UPDATE procedural SET {col} = {col} + 1 "
-            "WHERE workspace=? AND name=?",
-            (workspace, name),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                f"UPDATE procedural SET {col} = {col} + 1 "
+                "WHERE workspace=? AND name=?",
+                (workspace, name),
+            )
+            self._conn.commit()
 
     def procedures(self, workspace: str) -> list[Procedure]:
-        rows = self._conn.execute(
-            "SELECT workspace, name, steps, success_count, fail_count "
-            "FROM procedural WHERE workspace=? ORDER BY name",
-            (workspace,),
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT workspace, name, steps, success_count, fail_count "
+                "FROM procedural WHERE workspace=? ORDER BY name",
+                (workspace,),
+            ).fetchall()
         return [
             Procedure(
                 workspace=r["workspace"], name=r["name"],

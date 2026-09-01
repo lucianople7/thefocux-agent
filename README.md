@@ -34,15 +34,27 @@ Instala el CLI global `focux` + `focux-web`, 57 skills, 11 roles y el BRAIN.
 Luego: `Copy-Item .env.example .env` y añade tu API key (DeepSeek, Qwen,
 OpenAI, o `auto` vía OmniRoute con free tiers).
 
+Sin pip también puedes hacer el CLI global portable en cualquier máquina:
+
+```bash
+focux install                 # launchers portables en ~/.thefocux/bin (PATH)
+focux install --mcp           # + registra el brain MCP a nivel usuario (Codex)
+```
+
 ## THE FOCUX BRAIN — el mejorador de agentes y negocios
 
 No solo un agente: una **capa de gobierno** que cualquier agente adopta para
 cualquier negocio. Monta el brain en un directorio con un comando:
 
 ```bash
-focux attach ./mi-negocio     # contrato universal + configs por agente + MCP
+focux attach ./mi-negocio --workspace mi-negocio   # + espacio de memoria propio
 focux doctor --target ./mi-negocio   # verifica la instalación end-to-end
 ```
+
+Cada negocio attached declara su **workspace** (`.focux-workspace`, por
+defecto el nombre del directorio): la memoria se separa por negocio, y
+cualquier comando (`focux absorb`, `focux evolve`, `focux run`) que corras
+dentro de ese árbol **detecta el workspace automáticamente** — sin flags.
 
 Cualquier agente (Codex, Claude Code, Cursor, Aider, Copilot, Gemini CLI,
 CowAgent, el futuro) que trabaje en ese directorio lee `AGENTS.md` +
@@ -78,9 +90,10 @@ focux heartbeat --revenue 3000 --cost 2000 --cash 5000 --approvals 2
 
 focux doctor        # brain diagnostics (skills, gates, provider, MCP, survival)
 focux doctor --target ./neg  # + verifica el workspace attached end-to-end
-focux attach ./neg  # UNIVERSAL: AGENTS.md + metaskill + constitución + memoria
+focux attach ./neg --workspace mi-negocio  # UNIVERSAL + memoria por negocio
                     # + configs nativas (claude/codex/cursor/aider/copilot) + MCP
-focux modules       # sistema modular: 20 órganos registrados + integrity check
+focux install       # CLI global portable en ~/.thefocux/bin (+ --mcp)
+focux modules       # sistema modular: 21 órganos registrados + integrity check
 focux evolve        # evolución diaria: analiza lo ejecutado, propone mejoras
 focux absorb        # absorbe DATOS REALES (github/huggingface/x) a la memoria
 focux multiply '<insight>'   # REVENUE MULTIPLIER: 1 pieza -> 20+ activos
@@ -124,9 +137,9 @@ append-only. Todo es propuesta: nada se auto-activa.
 
 ## Sistema modular — cada órgano registrado y verificado
 
-`focux modules` lista los 20 órganos del brain (money-gate, constitution,
+`focux modules` lista los 21 órganos del brain (money-gate, constitution,
 soul, voice, content, memory, tools, eval, survival, heartbeat, selfmod,
-orchestrator, evolution, repurpose, offer, ingest, attach, mcp-bridge,
+orchestrator, evolution, repurpose, offer, ingest, attach, install, mcp-bridge,
 webui...) con versión semver y dependencias. `integrity_check` **prueba que
 cada módulo importa y que el falsification del money-gate sigue verde** — un
 módulo nuevo no puede romper el sistema inmune en silencio.
@@ -321,14 +334,15 @@ Monta los skills en cualquier shell agente-nativo apuntando su `skills.dirs`
 
 ```
 thefocux-agent/
-├── focux.py               # CLI: run | repl | skills | absorb | multiply
+├── focux.py               # CLI: run | repl | skills | absorb | multiply | install
 ├── runtime/               # runtime propio: agente, LLM, skills (sin shell)
 │   ├── ingest.py          #   sensores reales: github/huggingface/x -> memoria
 │   ├── attach.py          #   instalador universal: brain en cualquier agente
+│   ├── install.py         #   CLI global portable: launchers + MCP de usuario
 │   ├── repurpose.py       #   multiplier: 1 pieza -> 20+ activos
 │   ├── offer.py           #   escalera de 5 peldaños: atención -> ingresos
 │   ├── evolution.py       #   ciclo diario: analiza -> propone mejoras
-│   └── modules.py         #   registro modular (20 órganos) + integrity check
+│   └── modules.py         #   registro modular (21 órganos) + integrity check
 ├── policy/                # DNA determinista, NO LLM en rutas de decisión
 │   ├── money_gate.py      #   approval boundary (ALLOW/REVIEW/DENY)
 │   ├── constitution.py    #   3 leyes inmutables como código
