@@ -115,6 +115,11 @@ focux attach ./neg --workspace mi-negocio  # UNIVERSAL + memoria por negocio
 focux install       # CLI global portable en ~/.thefocux/bin (+ --mcp)
 focux ask '<cualquier pregunta>'  # ANYTHING interface: el brain con contexto dirigido
 focux insights      # analista de oportunidades: señales reales -> oportunidades gateadas
+focux map           # PROJECT MAP: mapea el proyecto a un grafo consultable (local, stdlib)
+focux map explain '<concepto>'   # nodo + conexiones EXTRACTED/INFERRED
+focux map path '<a>' '<b>'       # trayectoria hop-by-hop entre dos conceptos
+focux lesson '<que aprendiste>'  # memoria de trabajo: lecciones
+focux reflect       # agrega las lecciones en .focux/lessons.md
 focux audit         # salud completa: doctor + work + attached (--json)
 focux mcp           # ejecuta el bridge MCP (19 tools) sobre stdio
 focux modules       # sistema modular: 25 órganos registrados + integrity check
@@ -285,7 +290,7 @@ focux focus --revenue 300 --cost 2000 --cash 500   # + tier de supervivencia
   comando), y la tool MCP **`focux_focus`** (cualquier agente la llama al
   arrancar). El metaskill lo ordena: *"Be smart ONLY toward the real goals."*
 
-## Agent-first: el brain completo vía MCP — 18 tools
+## Agent-first: el brain completo vía MCP — 22 tools
 
 Cualquier agente (Codex, Claude Code, Cursor...) consulta el brain entero como
 tools MCP (`mcp_bridge.py`, registrado en Codex como `thefocux`) — **fluido,
@@ -297,6 +302,7 @@ sin parsear prosa**:
 - `focux_drive` — la pasada de inteligencia (gap → plan gateado)
 - `focux_expert_ask / review` — expertos mundiales + calidad PASS/REVISE
 - `focux_absorb` — datos reales (github/huggingface/x) → memoria
+- `focux_graph_explain / path / query` — el mapa del proyecto (local, stdlib)
 - `focux_work_status` — dónde está el trabajo por etapas
 - `focux_survival` / `focux_heartbeat` — tier + ritmo del negocio
 - `focux_signals` / `focux_memory` — evidencia y memoria compartida

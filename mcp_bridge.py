@@ -311,6 +311,55 @@ def _tool_absorb(args: dict) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# Project graph over MCP (deterministic, local)
+# ---------------------------------------------------------------------------
+
+_graph_cache: dict = {}
+
+
+def _project_graph():
+    """The mapped project graph (.focux/map/projectmap.json), cached."""
+    from runtime.projectmap import load_graph
+
+    if "graph" not in _graph_cache:
+        path = REPO / ".focux" / "map" / "projectmap.json"
+        if not path.exists():
+            _graph_cache["graph"] = None
+        else:
+            _graph_cache["graph"] = load_graph(path)
+    return _graph_cache["graph"]
+
+
+def _tool_graph_explain(args: dict) -> dict:
+    from runtime.projectmap import explain
+
+    graph = _project_graph()
+    if graph is None:
+        return {"found": False, "reason": "no map yet - run `focux map`"}
+    return explain(graph, str(args.get("name", "")))
+
+
+def _tool_graph_path(args: dict) -> dict:
+    from runtime.projectmap import shortest_path
+
+    graph = _project_graph()
+    if graph is None:
+        return {"found": False, "reason": "no map yet - run `focux map`"}
+    return shortest_path(graph, str(args.get("a", "")), str(args.get("b", "")))
+
+
+def _tool_graph_query(args: dict) -> dict:
+    from runtime.projectmap import query
+
+    graph = _project_graph()
+    if graph is None:
+        return {"nodes": [], "edges": [], "matched": 0,
+                "reason": "no map yet - run `focux map`"}
+    return query(graph, str(args.get("question", "")),
+                 limit=int(args.get("limit", 8) or 8))
+
+
 def _tool_selfmod(args: dict) -> dict:
     """Append-only self-modification audit (skills crystallized, etc.)."""
     from runtime.selfmod import SelfModLog, is_protected
@@ -520,6 +569,35 @@ TOOLS: dict[str, dict] = {
             },
         },
         "handler": _tool_absorb,
+    },
+    "focux_graph_explain": {
+        "description": "A concept in the mapped project graph and its connections (EXTRACTED vs INFERRED).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
+        },
+        "handler": _tool_graph_explain,
+    },
+    "focux_graph_path": {
+        "description": "Shortest path between two concepts in the project graph (hop by hop).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"a": {"type": "string"}, "b": {"type": "string"}},
+            "required": ["a", "b"],
+        },
+        "handler": _tool_graph_path,
+    },
+    "focux_graph_query": {
+        "description": "Keyword-scored subgraph for a plain-language question (deterministic, local).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "question": {"type": "string"}, "limit": {"type": "integer"},
+            },
+            "required": ["question"],
+        },
+        "handler": _tool_graph_query,
     },
     "focux_selfmod": {
         "description": "Append-only self-modification audit (skills crystallized, drafts). Protected files listed.",

@@ -114,6 +114,12 @@ coding agent inside THE FOCUX BRAIN:
   work state and the survival tier. Direct your intelligence there. If the
   pack reports NO objectives, say so and either propose setting one or do
   the direct task - intelligence without goals is noise.
+- **Query the project graph before reading files.** If the project is
+  mapped (`focux map` -> .focux/map/projectmap.json), answer codebase
+  questions with focux_graph_query / focux_graph_explain /
+  focux_graph_path (or `focux map explain|path|query`) instead of grepping
+  files. Every edge is tagged EXTRACTED (explicit) or INFERRED (resolved) -
+  always know what was read vs derived.
 - **Improve your own procedures.** `focux evolve` analyzes what executed and
   proposes fixes/crystallizations as DRAFT skills — proposals only, the
   human promotes.

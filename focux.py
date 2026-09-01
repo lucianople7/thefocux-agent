@@ -508,6 +508,70 @@ def cmd_status(args: argparse.Namespace) -> int:
     return _out(args, [format_master_status(data)], data)
 
 
+def cmd_map(args: argparse.Namespace) -> int:
+    """PROJECT MAP: map the project into a queryable graph (local, stdlib)."""
+    from runtime.projectmap import (
+        build_graph, explain, format_explain, format_map_summary, format_path,
+        format_query, load_graph, query, save_graph, shortest_path,
+    )
+
+    root = Path(args.dir or ".").resolve()
+    if args.action == "build" or args.action == "":
+        graph = build_graph(root)
+        path = save_graph(graph, root / ".focux" / "map")
+        lines = [format_map_summary(graph, root), f"\nsaved: {path}",
+                 "query: focux map explain '<name>' | path '<a>' '<b>' | "
+                 "query '<pregunta>'"]
+        return _out(args, lines, graph.as_dict())
+
+    map_dir = root / ".focux" / "map" / "projectmap.json"
+    if not map_dir.exists():
+        return _out_err(args, "no map yet - run `focux map` first")
+    graph = load_graph(map_dir)
+    if args.action == "explain":
+        result = explain(graph, args.name)
+        return _out(args, [format_explain(result)], result)
+    if args.action == "path":
+        result = shortest_path(graph, args.a, args.b)
+        return _out(args, [format_path(result)], result)
+    if args.action == "query":
+        result = query(graph, args.question)
+        return _out(args, [format_query(result)], result)
+    return 2
+
+
+def cmd_lesson(args: argparse.Namespace) -> int:
+    """Save a lesson from real work (the brain's accumulated wisdom)."""
+    from runtime.attach import detect_workspace
+    from runtime.lessons import save_lesson
+    from runtime.memory import FocuxMemory
+
+    workspace = getattr(args, "workspace", "") or detect_workspace()
+    mem = FocuxMemory(REPO_ROOT / "memory" / "focux.db")
+    try:
+        result = save_lesson(mem, workspace, args.lesson)
+    finally:
+        mem.close()
+    lines = [f"lesson saved [{result['key']}]", "aggregate with: focux reflect"]
+    return _out(args, lines, result)
+
+
+def cmd_reflect(args: argparse.Namespace) -> int:
+    """Aggregate saved lessons into .focux/lessons.md."""
+    from runtime.attach import detect_workspace
+    from runtime.lessons import reflect
+    from runtime.memory import FocuxMemory
+
+    workspace = getattr(args, "workspace", "") or detect_workspace()
+    mem = FocuxMemory(REPO_ROOT / "memory" / "focux.db")
+    try:
+        target = reflect(mem, workspace, out=Path.cwd() / ".focux" / "lessons.md")
+    finally:
+        mem.close()
+    lines = [f"LESSONS reflected -> {target}"]
+    return _out(args, lines, {"file": str(target)})
+
+
 def cmd_daily(args: argparse.Namespace) -> int:
     """The daily intelligence ritual: VER -> ENFOQUE -> ESTRATEGIA -> OPORTUNIDADES -> VIGILANCIA."""
     from runtime.attach import detect_workspace
@@ -1142,6 +1206,39 @@ def main(argv: list[str] | None = None) -> int:
     daily.add_argument("--cash", type=float, default=0.0)
     daily.add_argument("--workspace", default="")
     daily.set_defaults(func=cmd_daily)
+
+    map_cmd = sub.add_parser("map", parents=[_JSON_PARENT],
+                             help="PROJECT MAP: mapea el proyecto a un grafo consultable (local, stdlib)")
+    msub = map_cmd.add_subparsers(dest="action")
+    mbuild = msub.add_parser("build", help="build the project graph")
+    mbuild.add_argument("dir", nargs="?", default=".")
+    mbuild.set_defaults(func=cmd_map)
+    mexp = msub.add_parser("explain", help="a node and its connections (EXTRACTED/INFERRED)")
+    mexp.add_argument("name")
+    mexp.add_argument("--dir", default=".")
+    mexp.set_defaults(func=cmd_map)
+    mpath = msub.add_parser("path", help="shortest path between two concepts")
+    mpath.add_argument("a")
+    mpath.add_argument("b")
+    mpath.add_argument("--dir", default=".")
+    mpath.set_defaults(func=cmd_map)
+    mquery = msub.add_parser("query", help="keyword-scored subgraph for a question")
+    mquery.add_argument("question")
+    mquery.add_argument("--dir", default=".")
+    mquery.set_defaults(func=cmd_map)
+    # bare `focux map` builds the current dir
+    map_cmd.set_defaults(action="build", dir=".", func=cmd_map)
+
+    lesson = sub.add_parser("lesson", parents=[_JSON_PARENT],
+                            help="save a lesson from real work (work memory)")
+    lesson.add_argument("lesson")
+    lesson.add_argument("--workspace", default="")
+    lesson.set_defaults(func=cmd_lesson)
+
+    reflect = sub.add_parser("reflect", parents=[_JSON_PARENT],
+                             help="aggregate lessons into .focux/lessons.md")
+    reflect.add_argument("--workspace", default="")
+    reflect.set_defaults(func=cmd_reflect)
 
     args = parser.parse_args(argv)
     if getattr(args, "command", None) is None:
