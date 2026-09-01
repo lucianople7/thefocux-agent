@@ -28,6 +28,16 @@ from runtime.llm import LLMClient, OllamaClient, OpenAICompatClient  # noqa: E40
 from runtime.skills import load_skills  # noqa: E402
 
 
+def console_safe(text: str) -> str:
+    """LLM output is not ASCII-safe: DeepSeek drafts contain '->' arrows,
+    emoji etc. that crash Windows cp1252 consoles. Fold only the characters
+    cp1252 cannot encode (keeps Spanish accents, replaces the rest with '?')."""
+    try:
+        return text.encode("cp1252", errors="replace").decode("cp1252")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return text.encode("ascii", errors="replace").decode("ascii")
+
+
 def default_gate() -> MoneyGate:
     """L1 table: money/commerce/account/content REVIEW; read auto-approve."""
     return MoneyGate(
@@ -88,7 +98,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     if args.draft and result.decision in ("ALLOW", "REVIEW"):
         draft = agent.draft(args.objective)
         print("\n--- draft ---")
-        print(draft)
+        print(console_safe(draft))
     return 0 if result.ok else 1
 
 
@@ -113,7 +123,7 @@ def cmd_repl(args: argparse.Namespace) -> int:
         result = agent.propose(pillar=args.pillar, objective=line)
         print(f"[{result.decision}] {result.summary}")
         if result.decision == "ALLOW":
-            print(agent.draft(line))
+            print(console_safe(agent.draft(line)))
     return 0
 
 
@@ -171,7 +181,7 @@ def cmd_agents(args: argparse.Namespace) -> int:
         result = agent.run_role(args.run, objective=args.objective)
         print(f"[{result.decision}] {result.summary}")
         if result.content:
-            print(result.content)
+            print(console_safe(result.content))
         return 0 if result.ok else 1
 
     now = datetime.now()
@@ -425,7 +435,7 @@ def cmd_multiply(args: argparse.Namespace) -> int:
         print("\n--- drafts ---")
         for asset in assets:
             if asset.draft:
-                print(f"[{asset.id}]\n{asset.draft[:300]}\n")
+                print(f"[{asset.id}]\n{console_safe(asset.draft[:300])}\n")
     return 0
 
 
