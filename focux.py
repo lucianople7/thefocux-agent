@@ -285,6 +285,62 @@ def cmd_install(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_objective(args: argparse.Namespace) -> int:
+    """Objective Brain: measurable goals the brain drives toward."""
+    from runtime.attach import detect_workspace
+    from runtime.memory import FocuxMemory
+
+    workspace = args.workspace or detect_workspace()
+    mem = FocuxMemory(REPO_ROOT / "memory" / "focux.db")
+    try:
+        if args.action == "add":
+            obj = mem.add_objective(
+                workspace, args.title, args.kpi, args.target,
+                unit=args.unit, deadline=args.deadline,
+            )
+            print(f"objective added [{obj.objective_id}]: {obj.title} | "
+                  f"{obj.kpi}: 0/{obj.target:.0f}{(' ' + obj.unit) if obj.unit else ''}"
+                  f" | deadline {obj.deadline or 'none'}")
+            return 0
+
+        if args.action == "list":
+            for obj in mem.objectives(workspace):
+                print(f"  [{obj.objective_id}] {obj.title} | {obj.kpi}: "
+                      f"{obj.current:.0f}/{obj.target:.0f}"
+                      f"{(' ' + obj.unit) if obj.unit else ''}")
+            if not mem.objectives(workspace):
+                print("  (no objectives - add one: focux objective add '<title>' "
+                      "--kpi <kpi> --target <n>)")
+            return 0
+
+        if args.action == "status":
+            from runtime.objectives import format_status, objective_status
+            print(format_status(objective_status(mem, workspace)))
+            return 0
+
+        if args.action == "set":
+            obj = mem.update_objective_current(workspace, args.id, args.current)
+            if obj is None:
+                print(f"no objective '{args.id}' in workspace '{workspace}'")
+                return 2
+            print(f"[{obj.objective_id}] {obj.title} | {obj.kpi}: "
+                  f"{obj.current:.0f}/{obj.target:.0f} "
+                  f"({obj.progress() * 100:.0f}%) - measured")
+            return 0
+
+        if args.action == "drive":
+            from runtime.objectives import drive, format_drive
+
+            agent = build_agent(workspace=workspace)
+            report = drive(agent, workspace, objective_id=args.id,
+                           limit=args.limit, tier=args.tier)
+            print(format_drive(report))
+            return 0
+        return 2
+    finally:
+        mem.close()
+
+
 def cmd_heartbeat(args: argparse.Namespace) -> int:
     """Heartbeat report: survival tier + roles due + approvals."""
     from runtime.heartbeat import format_report, heartbeat
@@ -529,6 +585,34 @@ def main(argv: list[str] | None = None) -> int:
     agents.add_argument("--run", default="", help="run one role (gated)")
     agents.add_argument("--objective", default="", help="objective for --run")
     agents.set_defaults(func=cmd_agents)
+
+    objective = sub.add_parser("objective", help="Objective Brain: measurable goals the brain drives toward")
+    osub = objective.add_subparsers(dest="action", required=True)
+    oadd = osub.add_parser("add", help="add an objective")
+    oadd.add_argument("title")
+    oadd.add_argument("--kpi", required=True, help="metric (followers, revenue, leads...)")
+    oadd.add_argument("--target", type=float, required=True)
+    oadd.add_argument("--unit", default="")
+    oadd.add_argument("--deadline", default="", help="ISO date YYYY-MM-DD")
+    oadd.add_argument("--workspace", default="")
+    oadd.set_defaults(func=cmd_objective)
+    olist = osub.add_parser("list", help="list objectives")
+    olist.add_argument("--workspace", default="")
+    olist.set_defaults(func=cmd_objective)
+    ostatus = osub.add_parser("status", help="progress, gap, overdue, momentum")
+    ostatus.add_argument("--workspace", default="")
+    ostatus.set_defaults(func=cmd_objective)
+    oset = osub.add_parser("set", help="MEDIR: record the current KPI value")
+    oset.add_argument("id")
+    oset.add_argument("--current", type=float, required=True)
+    oset.add_argument("--workspace", default="")
+    oset.set_defaults(func=cmd_objective)
+    odrive = osub.add_parser("drive", help="INTELLIGENCE: gap analysis -> gated plan (LLM)")
+    odrive.add_argument("--id", default="", help="one objective id (default: all)")
+    odrive.add_argument("--limit", type=int, default=3)
+    odrive.add_argument("--tier", default="normal")
+    odrive.add_argument("--workspace", default="")
+    odrive.set_defaults(func=cmd_objective)
 
     attach = sub.add_parser("attach", help="mount THE FOCUX BRAIN on any agent/business dir")
     attach.add_argument("dir", help="target directory")

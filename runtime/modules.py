@@ -69,6 +69,8 @@ MODULES: tuple[Module, ...] = (
            deps=("memory",), entry="runtime.attach"),
     Module("install", "1.0.0", "Global CLI installer: portable launchers + user-level MCP",
            deps=("attach",), entry="runtime.install"),
+    Module("objectives", "1.0.0", "Objective Brain: measurable goals + intelligence drive (gap -> gated plan)",
+           deps=("memory", "ingest"), entry="runtime.objectives"),
     Module("mcp-bridge", "1.0.0", "The brain as MCP tools for any agent",
            deps=("tools", "memory", "survival", "heartbeat", "orchestrator",
                  "selfmod"), entry="mcp_bridge"),

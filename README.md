@@ -97,7 +97,7 @@ focux doctor --target ./neg  # + verifica el workspace attached end-to-end
 focux attach ./neg --workspace mi-negocio  # UNIVERSAL + memoria por negocio
                     # + configs nativas (claude/codex/cursor/aider/copilot) + MCP
 focux install       # CLI global portable en ~/.thefocux/bin (+ --mcp)
-focux modules       # sistema modular: 21 órganos registrados + integrity check
+focux modules       # sistema modular: 22 órganos registrados + integrity check
 focux evolve        # evolución diaria: analiza lo ejecutado, propone mejoras
 focux absorb        # absorbe DATOS REALES (github/huggingface/x) a la memoria
 focux multiply '<insight>'   # REVENUE MULTIPLIER: 1 pieza -> 20+ activos
@@ -141,12 +141,13 @@ append-only. Todo es propuesta: nada se auto-activa.
 
 ## Sistema modular — cada órgano registrado y verificado
 
-`focux modules` lista los 21 órganos del brain (money-gate, constitution,
+`focux modules` lista los 22 órganos del brain (money-gate, constitution,
 soul, voice, content, memory, tools, eval, survival, heartbeat, selfmod,
-orchestrator, evolution, repurpose, offer, ingest, attach, install, mcp-bridge,
-webui...) con versión semver y dependencias. `integrity_check` **prueba que
-cada módulo importa y que el falsification del money-gate sigue verde** — un
-módulo nuevo no puede romper el sistema inmune en silencio.
+orchestrator, evolution, repurpose, offer, ingest, attach, install,
+objectives, mcp-bridge, webui...) con versión semver y dependencias.
+`integrity_check` **prueba que cada módulo importa y que el falsification del
+money-gate sigue verde** — un módulo nuevo no puede romper el sistema inmune
+en silencio.
 
 ## Absorción de datos reales — el cerebro que ve el mundo
 
@@ -168,6 +169,27 @@ borrador que genera el agente recibe **automáticamente** un bloque
 modelo + descargas) — sin keywords de recuperación, sin truncamiento: los
 datos reales son un hecho con el que el brain razona. La ingesta es solo
 lectura: ningún sensor ejecuta acciones, y el money-gate sigue mandando.
+
+## Objective Brain — inteligencia real HACIA los objetivos
+
+El brain no solo dice NO (sistema inmune): **empuja el negocio hacia metas
+medibles**. Define un objetivo, el brain analiza el gap con datos reales,
+propone acciones concretas (gateadas) y mide el avance:
+
+```bash
+focux objective add "Publicar 3 piezas sobre agentes IA" --kpi piezas --target 3 --deadline 2026-12-31
+focux objective drive          # INTELIGENCIA: gap + señales reales -> plan gateado (LLM)
+focux objective status         # progreso, gap, overdue, momentum (delta)
+focux objective set <id> --current 2   # MEDIR tras ejecutar
+```
+
+Cómo funciona el `drive`: junta los objetivos con sus gaps, el tier de
+supervivencia, los **datos REALES absorbidos** y los procedimientos; el LLM
+(cualquier proveedor) propone **una acción concreta por objetivo basada en
+evidencia**; cada propuesta pasa por el money-gate **antes** de entrar al
+plan — el brain propone con inteligencia pero **nunca auto-autoriza**:
+research → ALLOW, publicar → REVIEW, cobrar → REVIEW. El humano aprueba los
+REVIEW, ejecuta, mide (`set --current`), y el brain ajusta con momentum real.
 
 ## Agent-first: el brain completo vía MCP
 
@@ -343,10 +365,11 @@ thefocux-agent/
 │   ├── ingest.py          #   sensores reales: github/huggingface/x -> memoria
 │   ├── attach.py          #   instalador universal: brain en cualquier agente
 │   ├── install.py         #   CLI global portable: launchers + MCP de usuario
+│   ├── objectives.py      #   Objective Brain: metas medibles + drive (LLM gateado)
 │   ├── repurpose.py       #   multiplier: 1 pieza -> 20+ activos
 │   ├── offer.py           #   escalera de 5 peldaños: atención -> ingresos
 │   ├── evolution.py       #   ciclo diario: analiza -> propone mejoras
-│   └── modules.py         #   registro modular (21 órganos) + integrity check
+│   └── modules.py         #   registro modular (22 órganos) + integrity check
 ├── policy/                # DNA determinista, NO LLM en rutas de decisión
 │   ├── money_gate.py      #   approval boundary (ALLOW/REVIEW/DENY)
 │   ├── constitution.py    #   3 leyes inmutables como código

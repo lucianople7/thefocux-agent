@@ -111,8 +111,66 @@ class Procedure:
         }
 
 
+@dataclass(frozen=True)
+class Objective:
+    """A measurable business objective the brain drives toward.
+
+    ``kpi`` names the metric (followers, revenue, leads, pieces...),
+    ``target`` the goal, ``current`` the measured value (updated by the
+    operator or by MEDIR), ``deadline`` an ISO date. ``plan`` holds the
+    last gated action plan the intelligence pass proposed.
+    """
+
+    workspace: str
+    objective_id: str
+    title: str
+    kpi: str
+    target: float
+    current: float = 0.0
+    unit: str = ""
+    deadline: str = ""
+    created_at: str = ""
+    plan: tuple[dict[str, Any], ...] = ()
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "workspace": self.workspace,
+            "objective_id": self.objective_id,
+            "title": self.title,
+            "kpi": self.kpi,
+            "target": self.target,
+            "current": self.current,
+            "unit": self.unit,
+            "deadline": self.deadline,
+            "created_at": self.created_at,
+            "plan": list(self.plan),
+        }
+
+    def progress(self) -> float:
+        """0.0..1.0 (capped); 1.0 when achieved; 0.0 for zero targets."""
+        if self.target <= 0:
+            return 1.0
+        return max(0.0, min(1.0, self.current / self.target))
+
+
 def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def _objective_id(title: str) -> str:
+    """Stable slug from the title (kebab-case, ascii) for objective ids."""
+    slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+    return slug[:48] or "objective"
+
+
+def _row_to_objective(row) -> Objective:  # type: ignore[no-untyped-def]
+    return Objective(
+        workspace=row["workspace"], objective_id=row["objective_id"],
+        title=row["title"], kpi=row["kpi"], target=float(row["target"]),
+        current=float(row["current"]), unit=row["unit"], deadline=row["deadline"],
+        created_at=row["created_at"],
+        plan=tuple(json.loads(row["plan"] or "[]")),
+    )
 
 
 class FocuxMemory:
@@ -160,6 +218,24 @@ class FocuxMemory:
                     success_count INTEGER NOT NULL DEFAULT 0,
                     fail_count INTEGER NOT NULL DEFAULT 0,
                     PRIMARY KEY (workspace, name)
+                );
+                CREATE TABLE IF NOT EXISTS objectives (
+                    workspace TEXT NOT NULL,
+                    objective_id TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    kpi TEXT NOT NULL,
+                    target REAL NOT NULL,
+                    current REAL NOT NULL DEFAULT 0,
+                    unit TEXT NOT NULL DEFAULT '',
+                    deadline TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    plan TEXT NOT NULL DEFAULT '[]',
+                    PRIMARY KEY (workspace, objective_id)
+                );
+                CREATE TABLE IF NOT EXISTS objective_history (
+                    objective_id TEXT NOT NULL,
+                    recorded_at TEXT NOT NULL,
+                    current REAL NOT NULL
                 );
                 """
             )
@@ -275,6 +351,94 @@ class FocuxMemory:
             )
             for r in rows
         ]
+
+    # -- objectives (the brain drives toward measurable goals) ---------------
+
+    def add_objective(
+        self,
+        workspace: str,
+        title: str,
+        kpi: str,
+        target: float,
+        *,
+        unit: str = "",
+        deadline: str = "",
+    ) -> Objective:
+        objective_id = _objective_id(title)
+        obj = Objective(
+            workspace=workspace, objective_id=objective_id, title=title,
+            kpi=kpi, target=float(target), unit=unit, deadline=deadline,
+            created_at=_now(),
+        )
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO objectives "
+                "(workspace, objective_id, title, kpi, target, current, unit, "
+                " deadline, created_at, plan) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (workspace, objective_id, title, kpi, obj.target, obj.current,
+                 unit, deadline, obj.created_at, "[]"),
+            )
+            self._conn.commit()
+        return obj
+
+    def objectives(self, workspace: str) -> list[Objective]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT workspace, objective_id, title, kpi, target, current, "
+                "unit, deadline, created_at, plan FROM objectives "
+                "WHERE workspace=? ORDER BY created_at",
+                (workspace,),
+            ).fetchall()
+        return [_row_to_objective(r) for r in rows]
+
+    def get_objective(
+        self, workspace: str, objective_id: str
+    ) -> Objective | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT workspace, objective_id, title, kpi, target, current, "
+                "unit, deadline, created_at, plan FROM objectives "
+                "WHERE workspace=? AND objective_id=?",
+                (workspace, objective_id),
+            ).fetchone()
+        return _row_to_objective(row) if row else None
+
+    def update_objective_current(
+        self, workspace: str, objective_id: str, value: float
+    ) -> Objective | None:
+        """MEDIR: record a new measured value (keeps history for momentum)."""
+        with self._lock:
+            self._conn.execute(
+                "UPDATE objectives SET current=? "
+                "WHERE workspace=? AND objective_id=?",
+                (float(value), workspace, objective_id),
+            )
+            self._conn.execute(
+                "INSERT INTO objective_history (objective_id, recorded_at, current) "
+                "VALUES (?,?,?)",
+                (objective_id, _now(), float(value)),
+            )
+            self._conn.commit()
+        return self.get_objective(workspace, objective_id)
+
+    def set_objective_plan(
+        self, workspace: str, objective_id: str, plan: list[dict[str, Any]]
+    ) -> None:
+        with self._lock:
+            self._conn.execute(
+                "UPDATE objectives SET plan=? WHERE workspace=? AND objective_id=?",
+                (json.dumps(plan, ensure_ascii=False), workspace, objective_id),
+            )
+            self._conn.commit()
+
+    def objective_history(self, objective_id: str) -> list[tuple[str, float]]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT recorded_at, current FROM objective_history "
+                "WHERE objective_id=? ORDER BY recorded_at",
+                (objective_id,),
+            ).fetchall()
+        return [(r["recorded_at"], float(r["current"])) for r in rows]
 
     # -- retrieval gate (fail-open) ------------------------------------------
 
