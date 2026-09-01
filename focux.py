@@ -596,6 +596,55 @@ def cmd_improve(args: argparse.Namespace) -> int:
     return _out(args, [format_improve(report)], report)
 
 
+def cmd_serve(args: argparse.Namespace) -> int:
+    """Serve the brain over HTTP: connect from Android, web, any machine."""
+    from runtime.server import serve
+
+    host = "0.0.0.0" if args.lan else args.host
+    serve(host=host, port=args.port)
+    return 0
+
+
+def cmd_link(args: argparse.Namespace) -> int:
+    """Connection guide: how to reach the brain from anywhere."""
+    import socket
+
+    def lan_ip() -> str:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+            s.close()
+            return ip
+        except OSError:
+            return ""
+
+    ip = lan_ip()
+    lines = [
+        "THE FOCUX BRAIN - connection guide",
+        "",
+        f"  LOCAL (esta maquina):  http://127.0.0.1:{args.port}",
+    ]
+    if ip:
+        lines.append(f"  LAN (Android/otras):  http://{ip}:{args.port}")
+        lines.append("")
+        lines.append("  ANDROID: abre esa URL en el navegador, o llama la API:")
+        lines.append(f'    curl http://{ip}:{args.port}/status')
+        lines.append(f'    curl -X POST http://{ip}:{args.port}/gate '
+                     '-H "Content-Type: application/json" '
+                     '-d \'{"pillar": "research", "objective": "analizar"}\'')
+        lines.append("    (requiere: `focux serve --lan` para exponer la red)")
+    else:
+        lines.append("  (sin red detectada - usa 127.0.0.1 o pasa --host)")
+    lines.append("")
+    lines.append("  WINDOWS: `focux serve` funciona nativo (stdlib http.server).")
+    lines.append("  Endpoints: GET /status /focus /objectives | "
+                 "POST /gate /ask /drive /insights /improve /absorb /mcp")
+    return _out(args, lines, {"local": f"http://127.0.0.1:{args.port}",
+                              "lan": f"http://{ip}:{args.port}" if ip else "",
+                              "port": args.port})
+
+
 def cmd_harness(args: argparse.Namespace) -> int:
     """HARNESS: make ANY software agent-native (CLI-Anything pattern)."""
     from runtime.attach import detect_workspace
@@ -1347,6 +1396,19 @@ def main(argv: list[str] | None = None) -> int:
     improve_cmd.add_argument("--tier", default="normal")
     improve_cmd.add_argument("--workspace", default="")
     improve_cmd.set_defaults(func=cmd_improve)
+
+    serve = sub.add_parser("serve", parents=[_JSON_PARENT],
+                           help="serve the brain over HTTP (Android/web/any machine)")
+    serve.add_argument("--port", type=int, default=8765)
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--lan", action="store_true",
+                       help="bind 0.0.0.0 and expose to the LAN (Android)")
+    serve.set_defaults(func=cmd_serve)
+
+    link = sub.add_parser("link", parents=[_JSON_PARENT],
+                          help="connection guide: reach the brain from anywhere")
+    link.add_argument("--port", type=int, default=8765)
+    link.set_defaults(func=cmd_link)
 
     harness = sub.add_parser("harness", parents=[_JSON_PARENT],
                              help="HARNESS: make ANY software agent-native (CLI-Anything pattern)")

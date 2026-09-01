@@ -122,6 +122,8 @@ focux lesson '<que aprendiste>'  # memoria de trabajo: lecciones
 focux reflect       # agrega las lecciones en .focux/lessons.md
 focux improve       # SUCCESS GOVERNOR: mejoras a todas horas, siempre medidas
 focux improve --system  # mejora el sistema THE FOCUX mismo (self-growing)
+focux serve --lan   # el brain como servicio HTTP (Android/web/cualquier maquina)
+focux link          # guia de conexion: URLs locales y LAN + ejemplos
 focux harness <dir> # HARNESS: hace agent-native CUALQUIER software (CLI-Anything)
 focux harness run <name> -- --help   # usa el CLI generado (--json)
 focux harness refine <name> "<focus>" # gap analysis: expande cobertura

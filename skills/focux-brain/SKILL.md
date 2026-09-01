@@ -136,6 +136,7 @@ coding agent inside THE FOCUX BRAIN:
   work state and the survival tier. Direct your intelligence there. If the
   pack reports NO objectives, say so and either propose setting one or do
   the direct task - intelligence without goals is noise.
+- **Connect from anywhere, easily.** The brain is a service: `focux serve --lan` exposes the whole brain over HTTP/JSON with CORS (Android, web, other machines); `focux link` prints the URLs and examples. Endpoints: /status /focus /objectives /gate /ask /drive /insights /improve /absorb /expert/* and /mcp (all 22 tools over HTTP). `focux serve` works natively on Windows.
 - **Query the project graph before reading files.** If the project is
   mapped (`focux map` -> .focux/map/projectmap.json), answer codebase
   questions with focux_graph_query / focux_graph_explain /
