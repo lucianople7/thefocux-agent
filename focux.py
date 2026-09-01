@@ -572,6 +572,52 @@ def cmd_reflect(args: argparse.Namespace) -> int:
     return _out(args, lines, {"file": str(target)})
 
 
+def cmd_harness(args: argparse.Namespace) -> int:
+    """HARNESS: make ANY software agent-native (CLI-Anything pattern)."""
+    from runtime.attach import detect_workspace
+    from runtime.harness import (
+        generate_harness, list_harnesses, refine_harness, run_harness,
+    )
+
+    workspace = getattr(args, "workspace", "") or detect_workspace()
+    if args.action == "list":
+        harnesses = list_harnesses()
+        lines = [f"  - {h['name']}  [{h['dir']}]" for h in harnesses] or \
+            ["  (no harnesses yet - generate one: focux harness <dir>)"]
+        return _out(args, lines, {"harnesses": harnesses})
+
+    agent = build_agent(workspace=workspace)
+    if args.action == "generate" or args.action == "":
+        try:
+            result = generate_harness(agent, Path(args.dir).resolve(),
+                                      name=args.name, workspace=workspace)
+        except ValueError as exc:
+            return _out_err(args, f"cannot generate: {exc}")
+        lines = [f"HARNESS '{result.name}' generated -> {result.dir}"]
+        for f in result.files:
+            lines.append(f"  + {f}")
+        lines.append(f"  {result.note}")
+        lines.append("  run: focux harness run '" + result.name + "' -- --help")
+        return _out(args, lines, result.as_dict())
+
+    if args.action == "run":
+        try:
+            return run_harness(args.name, args.args)
+        except FileNotFoundError as exc:
+            return _out_err(args, str(exc))
+
+    if args.action == "refine":
+        try:
+            result = refine_harness(agent, args.name, args.focus,
+                                    workspace=workspace)
+        except (ValueError, FileNotFoundError) as exc:
+            return _out_err(args, f"cannot refine: {exc}")
+        lines = [f"HARNESS '{result.name}' refined"] + \
+            [f"  + {f}" for f in result.files] + [f"  {result.note}"]
+        return _out(args, lines, result.as_dict())
+    return 2
+
+
 def cmd_daily(args: argparse.Namespace) -> int:
     """The daily intelligence ritual: VER -> ENFOQUE -> ESTRATEGIA -> OPORTUNIDADES -> VIGILANCIA."""
     from runtime.attach import detect_workspace
@@ -1239,6 +1285,28 @@ def main(argv: list[str] | None = None) -> int:
                              help="aggregate lessons into .focux/lessons.md")
     reflect.add_argument("--workspace", default="")
     reflect.set_defaults(func=cmd_reflect)
+
+    harness = sub.add_parser("harness", parents=[_JSON_PARENT],
+                             help="HARNESS: make ANY software agent-native (CLI-Anything pattern)")
+    hsub = harness.add_subparsers(dest="action")
+    hgen = hsub.add_parser("generate", help="analyze->design->generate->verify->publish a CLI for a codebase")
+    hgen.add_argument("dir", help="target codebase path")
+    hgen.add_argument("--name", default="", help="harness name (default: dir name)")
+    hgen.add_argument("--workspace", default="")
+    hgen.set_defaults(func=cmd_harness)
+    hlist = hsub.add_parser("list", help="installed harnesses")
+    hlist.set_defaults(func=cmd_harness)
+    hrun = hsub.add_parser("run", help="run an installed harness")
+    hrun.add_argument("name")
+    hrun.add_argument("args", nargs=argparse.REMAINDER,
+                      help="args passed to the harness CLI")
+    hrun.set_defaults(func=cmd_harness)
+    hrefine = hsub.add_parser("refine", help="gap analysis: extend a harness")
+    hrefine.add_argument("name")
+    hrefine.add_argument("focus", nargs="?", default="")
+    hrefine.add_argument("--workspace", default="")
+    hrefine.set_defaults(func=cmd_harness)
+    harness.set_defaults(action="list", func=cmd_harness)
 
     args = parser.parse_args(argv)
     if getattr(args, "command", None) is None:

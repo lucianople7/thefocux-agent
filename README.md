@@ -120,6 +120,9 @@ focux map explain '<concepto>'   # nodo + conexiones EXTRACTED/INFERRED
 focux map path '<a>' '<b>'       # trayectoria hop-by-hop entre dos conceptos
 focux lesson '<que aprendiste>'  # memoria de trabajo: lecciones
 focux reflect       # agrega las lecciones en .focux/lessons.md
+focux harness <dir> # HARNESS: hace agent-native CUALQUIER software (CLI-Anything)
+focux harness run <name> -- --help   # usa el CLI generado (--json)
+focux harness refine <name> "<focus>" # gap analysis: expande cobertura
 focux audit         # salud completa: doctor + work + attached (--json)
 focux mcp           # ejecuta el bridge MCP (19 tools) sobre stdio
 focux modules       # sistema modular: 25 órganos registrados + integrity check
