@@ -265,20 +265,26 @@ focux focus --revenue 300 --cost 2000 --cash 500   # + tier de supervivencia
   comando), y la tool MCP **`focux_focus`** (cualquier agente la llama al
   arrancar). El metaskill lo ordena: *"Be smart ONLY toward the real goals."*
 
-## Agent-first: el brain completo vía MCP
+## Agent-first: el brain completo vía MCP — 18 tools
 
 Cualquier agente (Codex, Claude Code, Cursor...) consulta el brain entero como
-tools MCP (`mcp_bridge.py`, registrado en Codex como `thefocux`):
+tools MCP (`mcp_bridge.py`, registrado en Codex como `thefocux`) — **fluido,
+sin parsear prosa**:
 
+- `focux_focus` — inteligencia dirigida: metas reales + gaps + evidencia
 - `focux_gate` — decide ALLOW/REVIEW/DENY antes de actuar
-- `focux_survival` — tier del negocio (esfuerzo, nunca autorización)
-- `focux_heartbeat` — tier + roles due + aprobaciones pendientes
-- `focux_roles` — los 11 roles con horarios
-- `focux_signals` — datos REALES absorbidos (github/huggingface/x) como hechos
-- `focux_memory` — hechos, eventos, procedimientos (SQLite compartido)
-- `focux_learn` — cristaliza procedimientos como DRAFT (humano promueve)
-- `focux_selfmod` — auditoría append-only de auto-modificaciones
-- `focux_redact` — secrets nunca en receipts
+- `focux_objective_add / set / status` — define y mide metas
+- `focux_drive` — la pasada de inteligencia (gap → plan gateado)
+- `focux_expert_ask / review` — expertos mundiales + calidad PASS/REVISE
+- `focux_absorb` — datos reales (github/huggingface/x) → memoria
+- `focux_work_status` — dónde está el trabajo por etapas
+- `focux_survival` / `focux_heartbeat` — tier + ritmo del negocio
+- `focux_signals` / `focux_memory` — evidencia y memoria compartida
+- `focux_roles` / `focux_learn` / `focux_selfmod` / `focux_redact`
+
+**CLI igual de fluido**: todo comando acepta `--json` (machine-readable,
+nada de prosa). Exit codes: 0 ok, 1 falló/REVIEW, 2 error de uso; en `--json`
+los errores llegan como `{"error": "..."}`.
 
 `focux doctor` ejecuta un **handshake real** contra el bridge (`--selfcheck`:
 initialize → tools/list → gate call) y verifica workspaces attached con

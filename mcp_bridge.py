@@ -178,6 +178,139 @@ def _tool_focus(args: dict) -> dict:
         mem.close()
 
 
+# ---------------------------------------------------------------------------
+# Full intelligence surface over MCP (fluent agent usage)
+# ---------------------------------------------------------------------------
+
+def _memory():
+    """Repo's shared SQLite memory (created on first use)."""
+    from runtime.memory import FocuxMemory
+
+    return FocuxMemory(REPO / "memory" / "focux.db")
+
+
+def _tool_objective_add(args: dict) -> dict:
+    mem = _memory()
+    try:
+        obj = mem.add_objective(
+            str(args.get("workspace", "default")),
+            str(args.get("title", "")),
+            str(args.get("kpi", "")),
+            float(args.get("target", 0)),
+            unit=str(args.get("unit", "") or ""),
+            deadline=str(args.get("deadline", "") or ""),
+        )
+        return obj.as_dict()
+    finally:
+        mem.close()
+
+
+def _tool_objective_set(args: dict) -> dict:
+    mem = _memory()
+    try:
+        obj = mem.update_objective_current(
+            str(args.get("workspace", "default")),
+            str(args.get("id", "")),
+            float(args.get("current", 0)),
+        )
+        if obj is None:
+            return {"error": f"no objective '{args.get('id')}'"}
+        return obj.as_dict()
+    finally:
+        mem.close()
+
+
+def _tool_objective_status(args: dict) -> dict:
+    from runtime.objectives import objective_status
+
+    mem = _memory()
+    try:
+        statuses = objective_status(mem, str(args.get("workspace", "default")))
+        return {"statuses": [s.as_dict() for s in statuses]}
+    finally:
+        mem.close()
+
+
+def _tool_drive(args: dict) -> dict:
+    from runtime.objectives import drive
+
+    agent = _get_agent()
+    report = drive(
+        agent,
+        str(args.get("workspace", "default")),
+        objective_id=str(args.get("objective_id", "") or ""),
+        limit=int(args.get("limit", 3) or 3),
+        tier=str(args.get("tier", "normal") or "normal"),
+    )
+    return report.as_dict()
+
+
+def _tool_expert_ask(args: dict) -> dict:
+    from runtime.experts import ask_expert
+
+    agent = _get_agent()
+    answer = ask_expert(
+        agent, str(args.get("domain", "")),
+        str(args.get("question", "")),
+        str(args.get("workspace", "default")),
+    )
+    return answer.as_dict()
+
+
+def _tool_expert_review(args: dict) -> dict:
+    from runtime.experts import review_draft
+
+    agent = _get_agent()
+    verdict = review_draft(
+        agent, str(args.get("domain", "")),
+        str(args.get("draft", "")),
+        str(args.get("workspace", "default")),
+    )
+    return verdict.as_dict()
+
+
+def _tool_work_status(args: dict) -> dict:
+    from runtime.workflow import load_state, resume_text, status_text, work_root
+
+    root = work_root()
+    state = load_state(root)
+    return {
+        "status": status_text(root),
+        "resume": resume_text(root),
+        "state": state.as_dict() if state else None,
+    }
+
+
+def _tool_absorb(args: dict) -> dict:
+    import os
+
+    from runtime.ingest import absorb, store_results
+
+    workspace = str(args.get("workspace", "default"))
+    sources = tuple(
+        s.strip() for s in str(args.get("sources", "github,huggingface")).split(",")
+        if s.strip()
+    )
+    results = absorb(
+        sources=sources,
+        github_query=str(args.get("query", "ai agent")),
+        x_bearer=os.environ.get("X_BEARER_TOKEN", ""),
+        x_query=str(args.get("query", "ai agent")),
+        limit=int(args.get("limit", 5) or 5),
+    )
+    mem = _memory()
+    try:
+        stored = store_results(results, mem, workspace=workspace)
+    finally:
+        mem.close()
+    return {
+        "stored": stored,
+        "workspace": workspace,
+        "sources": {s: {"ok": r.ok, "error": r.error,
+                        "items": list(r.items)} for s, r in results.items()},
+    }
+
+
 def _tool_selfmod(args: dict) -> dict:
     """Append-only self-modification audit (skills crystallized, etc.)."""
     from runtime.selfmod import SelfModLog, is_protected
@@ -299,6 +432,94 @@ TOOLS: dict[str, dict] = {
             },
         },
         "handler": _tool_focus,
+    },
+    "focux_objective_add": {
+        "description": "Add a measurable objective the brain drives toward.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string"}, "kpi": {"type": "string"},
+                "target": {"type": "number"}, "unit": {"type": "string"},
+                "deadline": {"type": "string"},
+                "workspace": {"type": "string"},
+            },
+            "required": ["title", "kpi", "target"],
+        },
+        "handler": _tool_objective_add,
+    },
+    "focux_objective_set": {
+        "description": "MEDIR: record a measured KPI value for an objective.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"}, "current": {"type": "number"},
+                "workspace": {"type": "string"},
+            },
+            "required": ["id", "current"],
+        },
+        "handler": _tool_objective_set,
+    },
+    "focux_objective_status": {
+        "description": "Where each objective stands: progress, gap, overdue, momentum.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"workspace": {"type": "string"}},
+        },
+        "handler": _tool_objective_status,
+    },
+    "focux_drive": {
+        "description": "INTELLIGENCE pass: gap analysis + real signals -> gated action plan (LLM proposes, gate decides, never auto-authorizes).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "objective_id": {"type": "string"}, "limit": {"type": "integer"},
+                "tier": {"type": "string"}, "workspace": {"type": "string"},
+            },
+        },
+        "handler": _tool_drive,
+    },
+    "focux_expert_ask": {
+        "description": "Consult a world-class domain expert (content/social/ecommerce/monetization/opportunities), grounded in playbook + real signals.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "domain": {"type": "string"}, "question": {"type": "string"},
+                "workspace": {"type": "string"},
+            },
+            "required": ["domain", "question"],
+        },
+        "handler": _tool_expert_ask,
+    },
+    "focux_expert_review": {
+        "description": "Quality gate: PASS/REVISE a draft against the domain checklist (hook, offer, price, validation...).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "domain": {"type": "string"}, "draft": {"type": "string"},
+                "workspace": {"type": "string"},
+            },
+            "required": ["domain", "draft"],
+        },
+        "handler": _tool_expert_review,
+    },
+    "focux_work_status": {
+        "description": "Work Harness state: where the current stage-gated work stands + resume info.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+        },
+        "handler": _tool_work_status,
+    },
+    "focux_absorb": {
+        "description": "Absorb REAL data (github/huggingface/x) into memory as facts for analysis.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "sources": {"type": "string"}, "query": {"type": "string"},
+                "limit": {"type": "integer"}, "workspace": {"type": "string"},
+            },
+        },
+        "handler": _tool_absorb,
     },
     "focux_selfmod": {
         "description": "Append-only self-modification audit (skills crystallized, drafts). Protected files listed.",

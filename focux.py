@@ -13,6 +13,7 @@ Provider selection (agnostic):
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -26,6 +27,32 @@ from runtime.agent import FocuxAgent  # noqa: E402
 from runtime.config import load_settings  # noqa: E402
 from runtime.llm import LLMClient, OllamaClient, OpenAICompatClient  # noqa: E402
 from runtime.skills import load_skills  # noqa: E402
+
+
+def _out(args: argparse.Namespace, lines: list[str],
+         data: object | None = None) -> int:
+    """Emit the result: JSON for agents (--json), prose for humans."""
+    if getattr(args, "json", False):
+        print(json.dumps(data if data is not None else {},
+                         ensure_ascii=False, default=str))
+    else:
+        print("\n".join(lines))
+    return 0
+
+
+def _out_err(args: argparse.Namespace, message: str, code: int = 2) -> int:
+    if getattr(args, "json", False):
+        print(json.dumps({"error": message}, ensure_ascii=False))
+    else:
+        print(message)
+    return code
+
+
+#: Every CLI command accepts --json so AGENTS can consume machine-readable
+#: output instead of parsing prose (fluent agent usage).
+_JSON_PARENT = argparse.ArgumentParser(add_help=False)
+_JSON_PARENT.add_argument("--json", action="store_true",
+                          help="machine-readable JSON output (for agents)")
 
 
 def console_safe(text: str) -> str:
@@ -103,19 +130,30 @@ def build_agent(workspace: str | None = None) -> FocuxAgent:
 def cmd_run(args: argparse.Namespace) -> int:
     agent = build_agent()
     refresh_focus(agent.workspace)
-    print(f"THE FOCUX Agent — skills loaded: {len(agent.skills)}")
     result = agent.propose(
         pillar=args.pillar,
         objective=args.objective,
         amount=args.amount,
         content=args.content,
     )
-    print(f"gate: {result.decision}")
-    print(f"summary: {result.summary}")
+    data: dict[str, object] = {
+        "gate": result.decision,
+        "summary": result.summary,
+        "workspace": agent.workspace,
+        "skills": len(agent.skills),
+    }
+    draft = ""
     if args.draft and result.decision in ("ALLOW", "REVIEW"):
         draft = agent.draft(args.objective)
-        print("\n--- draft ---")
-        print(console_safe(draft))
+        data["draft"] = draft
+    lines = [
+        f"THE FOCUX Agent - skills loaded: {len(agent.skills)}",
+        f"gate: {result.decision}",
+        f"summary: {result.summary}",
+    ]
+    if draft:
+        lines += ["", "--- draft ---", console_safe(draft)]
+    _out(args, lines, data)
     return 0 if result.ok else 1
 
 
@@ -184,7 +222,7 @@ def cmd_promote(args: argparse.Namespace) -> int:
 
 
 def cmd_agents(args: argparse.Namespace) -> int:
-    """List the 9 specialized business roles (+ due now / run one)."""
+    """List the specialized business roles (+ due now / run one)."""
     from datetime import datetime
 
     from runtime.orchestrator import all_roles, due_roles, role_named
@@ -193,25 +231,35 @@ def cmd_agents(args: argparse.Namespace) -> int:
         agent = build_agent()
         role = role_named(args.run)
         if role is None:
-            print(f"unknown role: {args.run}")
-            return 2
+            return _out_err(args, f"unknown role: {args.run}")
         result = agent.run_role(args.run, objective=args.objective)
-        print(f"[{result.decision}] {result.summary}")
+        data: dict[str, object] = {
+            "role": args.run,
+            "decision": result.decision,
+            "summary": result.summary,
+            "content": result.content,
+        }
+        lines = [f"[{result.decision}] {result.summary}"]
         if result.content:
-            print(console_safe(result.content))
+            lines.append(console_safe(result.content))
+        _out(args, lines, data)
         return 0 if result.ok else 1
 
     now = datetime.now()
     due = {r.name for r in due_roles(now)}
-    for role in all_roles():
-        marker = " ◀ due now" if role.name in due else ""
-        print(
-            f"- {role.name:20s} {role.pillar:12s} "
-            f"{role.action_class.value:10s} {role.cadence:12s} "
-            f"skill={role.skill}{marker}"
+    roles = [r.as_dict() for r in all_roles()]
+    for role in roles:
+        role["due_now"] = role["name"] in due
+    lines = []
+    for role in roles:
+        marker = " <- due now" if role["due_now"] else ""
+        lines.append(
+            f"- {role['name']:20s} {role['pillar']:12s} "
+            f"{role['action_class']:10s} {role['cadence']:12s} "
+            f"skill={role['skill']}{marker}"
         )
-    print(f"\n{len(all_roles())} roles · run one: python -m focux agents --run <name>")
-    return 0
+    lines.append(f"\n{len(roles)} roles - run one: python -m focux agents --run <name>")
+    return _out(args, lines, {"roles": roles})
 
 
 def cmd_attach(args: argparse.Namespace) -> int:
@@ -315,35 +363,37 @@ def cmd_objective(args: argparse.Namespace) -> int:
                 workspace, args.title, args.kpi, args.target,
                 unit=args.unit, deadline=args.deadline,
             )
-            print(f"objective added [{obj.objective_id}]: {obj.title} | "
-                  f"{obj.kpi}: 0/{obj.target:.0f}{(' ' + obj.unit) if obj.unit else ''}"
-                  f" | deadline {obj.deadline or 'none'}")
-            return 0
+            lines = [f"objective added [{obj.objective_id}]: {obj.title} | "
+                     f"{obj.kpi}: 0/{obj.target:.0f}"
+                     f"{(' ' + obj.unit) if obj.unit else ''}"
+                     f" | deadline {obj.deadline or 'none'}"]
+            return _out(args, lines, obj.as_dict())
 
         if args.action == "list":
-            for obj in mem.objectives(workspace):
-                print(f"  [{obj.objective_id}] {obj.title} | {obj.kpi}: "
-                      f"{obj.current:.0f}/{obj.target:.0f}"
-                      f"{(' ' + obj.unit) if obj.unit else ''}")
-            if not mem.objectives(workspace):
-                print("  (no objectives - add one: focux objective add '<title>' "
-                      "--kpi <kpi> --target <n>)")
-            return 0
+            objs = [o.as_dict() for o in mem.objectives(workspace)]
+            lines = [f"  [{o['objective_id']}] {o['title']} | {o['kpi']}: "
+                     f"{o['current']:.0f}/{o['target']:.0f}"
+                     f"{(' ' + o['unit']) if o.get('unit') else ''}"
+                     for o in objs]
+            if not objs:
+                lines.append("  (no objectives - add one: focux objective add "
+                             "'<title>' --kpi <kpi> --target <n>)")
+            return _out(args, lines, {"objectives": objs})
 
         if args.action == "status":
             from runtime.objectives import format_status, objective_status
-            print(format_status(objective_status(mem, workspace)))
-            return 0
+            statuses = objective_status(mem, workspace)
+            return _out(args, [format_status(statuses)],
+                        {"statuses": [s.as_dict() for s in statuses]})
 
         if args.action == "set":
             obj = mem.update_objective_current(workspace, args.id, args.current)
             if obj is None:
-                print(f"no objective '{args.id}' in workspace '{workspace}'")
-                return 2
-            print(f"[{obj.objective_id}] {obj.title} | {obj.kpi}: "
-                  f"{obj.current:.0f}/{obj.target:.0f} "
-                  f"({obj.progress() * 100:.0f}%) - measured")
-            return 0
+                return _out_err(args, f"no objective '{args.id}' in workspace '{workspace}'")
+            lines = [f"[{obj.objective_id}] {obj.title} | {obj.kpi}: "
+                     f"{obj.current:.0f}/{obj.target:.0f} "
+                     f"({obj.progress() * 100:.0f}%) - measured"]
+            return _out(args, lines, obj.as_dict())
 
         if args.action == "drive":
             from runtime.objectives import drive, format_drive
@@ -351,8 +401,7 @@ def cmd_objective(args: argparse.Namespace) -> int:
             agent = build_agent(workspace=workspace)
             report = drive(agent, workspace, objective_id=args.id,
                            limit=args.limit, tier=args.tier)
-            print(format_drive(report))
-            return 0
+            return _out(args, [format_drive(report)], report.as_dict())
         return 2
     finally:
         mem.close()
@@ -365,26 +414,28 @@ def cmd_expert(args: argparse.Namespace) -> int:
 
     workspace = getattr(args, "workspace", "") or detect_workspace()
     if args.action == "list":
-        for expert in list_experts():
-            print(f"  - {expert['domain']:14s} {expert['title']}"
-                  + (f"  [{expert['playbook']}]" if expert["playbook"] else ""))
-        return 0
+        experts = list_experts()
+        lines = [f"  - {e['domain']:14s} {e['title']}"
+                 + (f"  [{e['playbook']}]" if e["playbook"] else "")
+                 for e in experts]
+        return _out(args, lines, {"experts": experts})
 
     agent = build_agent(workspace=workspace)
     if args.action == "ask":
         answer = ask_expert(agent, args.domain, args.question, workspace)
-        print(f"[{answer.decision}] {answer.domain} expert:")
-        print(console_safe(answer.answer))
-        return 0
+        lines = [f"[{answer.decision}] {answer.domain} expert:",
+                 console_safe(answer.answer)]
+        return _out(args, lines, answer.as_dict())
 
     if args.action == "review":
         verdict = review_draft(agent, args.domain, args.draft, workspace)
-        print(f"REVIEW [{args.domain}] -> {verdict.verdict}")
+        lines = [f"REVIEW [{args.domain}] -> {verdict.verdict}"]
         for item in verdict.items:
             mark = "ok " if item.passed else "FAIL"
-            print(f"  [{mark}] {item.item} - {item.reason}")
+            lines.append(f"  [{mark}] {item.item} - {item.reason}")
         if verdict.judge_reason:
-            print(f"  judge: {verdict.judge_reason}")
+            lines.append(f"  judge: {verdict.judge_reason}")
+        _out(args, lines, verdict.as_dict())
         return 0 if verdict.passed else 1
     return 2
 
@@ -409,10 +460,9 @@ def cmd_focus(args: argparse.Namespace) -> int:
         pack = focus_pack(mem, workspace, tier=tier)
     finally:
         mem.close()
-    print(format_focus(pack))
     path = write_focus_file(pack)
-    print(f"\n(refreshed: {path})")
-    return 0
+    lines = [format_focus(pack), f"\n(refreshed: {path})"]
+    return _out(args, lines, pack.as_dict())
 
 
 def cmd_work(args: argparse.Namespace) -> int:
@@ -429,20 +479,18 @@ def cmd_work(args: argparse.Namespace) -> int:
     refresh_focus(workspace)
 
     if action == "status":
-        print(status_text(root))
-        return 0
+        return _out(args, [status_text(root)], {"work": status_text(root)})
 
     if action == "resume":
-        print(resume_text(root))
-        return 0
+        return _out(args, [resume_text(root)], {"work": resume_text(root)})
 
     if action == "validate":
         issues = validate(root)
         if not issues:
-            print("VALID: .focux/work state is consistent")
-            return 0
-        for issue in issues:
-            print(f"  [FAIL] {issue}")
+            return _out(args, ["VALID: .focux/work state is consistent"],
+                        {"valid": True, "issues": []})
+        lines = [f"  [FAIL] {i}" for i in issues]
+        _out(args, lines, {"valid": False, "issues": issues})
         return 1
 
     agent = build_agent(workspace=workspace)
@@ -453,57 +501,52 @@ def cmd_work(args: argparse.Namespace) -> int:
             state = frame(agent, args.objective, domain=args.domain,
                           workspace=workspace, force=args.force)
         except ValueError as exc:
-            print(f"cannot frame: {exc}")
-            return 2
-        print(f"FRAMED -> {state.spec_path}")
-        print("SPEC draft written. YOUR approval is the product review "
-              "(no model gate): focux work approve")
-        return 0
+            return _out_err(args, f"cannot frame: {exc}")
+        lines = [f"FRAMED -> {state.spec_path}",
+                 "SPEC draft written. YOUR approval is the product review "
+                 "(no model gate): focux work approve"]
+        return _out(args, lines, state.as_dict())
 
     if action == "approve":
         if state is None:
-            print("no work to approve - run `focux work frame '<objective>'`")
-            return 2
+            return _out_err(args, "no work to approve - run `focux work frame '<objective>'`")
         state = approve(state)
-        print(f"SPEC approved (product review) - stage: {state.stage}")
-        print("next: focux work plan")
-        return 0
+        lines = [f"SPEC approved (product review) - stage: {state.stage}",
+                 "next: focux work plan"]
+        return _out(args, lines, state.as_dict())
 
     if action == "plan":
         if state is None:
-            print("no work - run `focux work frame '<objective>'`")
-            return 2
+            return _out_err(args, "no work - run `focux work frame '<objective>'`")
         state = plan(agent, state, workspace=workspace)
-        print(f"PLANNED -> {state.plan_path}")
-        print("next: focux work execute")
-        return 0
+        lines = [f"PLANNED -> {state.plan_path}", "next: focux work execute"]
+        return _out(args, lines, state.as_dict())
 
     if action == "execute":
         if state is None:
-            print("no work - run `focux work frame '<objective>'`")
-            return 2
+            return _out_err(args, "no work - run `focux work frame '<objective>'`")
         gated = execute(agent, state, workspace=workspace)
-        print(f"EXECUTE (stage: {state.stage}) - plan steps gated:")
+        lines = [f"EXECUTE (stage: {state.stage}) - plan steps gated:"]
         for step in gated:
-            print(f"  [{step['decision']}] ({step['pillar']}) {step['action']}")
+            lines.append(f"  [{step['decision']}] ({step['pillar']}) {step['action']}")
         reviews = [s for s in gated if s["decision"] == "REVIEW"]
         if reviews:
-            print("REVIEW steps need human approval; ALLOW steps are yours "
-                  "to do across sessions. Close with: focux work verify")
-        return 0
+            lines.append("REVIEW steps need human approval; ALLOW steps are "
+                         "yours to do across sessions. Close with: focux work verify")
+        return _out(args, lines, {"stage": state.stage, "steps": gated})
 
     if action == "verify":
         if state is None:
-            print("no work - run `focux work frame '<objective>'`")
-            return 2
+            return _out_err(args, "no work - run `focux work frame '<objective>'`")
         state = verify(agent, state, workspace=workspace,
                        confirm=getattr(args, "confirm", False))
         if state.stage == "verified":
-            print(f"VERIFIED ('{state.objective}') - harness disengaged. "
-                  "Next sessions open quiet.")
+            lines = [f"VERIFIED ('{state.objective}') - harness disengaged. "
+                     "Next sessions open quiet."]
         else:
-            print(f"verification did not pass - back to {state.stage}. "
-                  "Fix and re-run: focux work verify")
+            lines = [f"verification did not pass - back to {state.stage}. "
+                     "Fix and re-run: focux work verify"]
+        _out(args, lines, state.as_dict())
         return 0 if state.stage == "verified" else 1
     return 2
 
@@ -519,8 +562,7 @@ def cmd_heartbeat(args: argparse.Namespace) -> int:
         cash=args.cash,
     )
     report = heartbeat(finances, pending_approvals=args.approvals)
-    print(format_report(report))
-    return 0
+    return _out(args, [format_report(report)], report.as_dict())
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
@@ -530,15 +572,14 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     (the universal installer's contract).
     """
     ok = True
+    checks: list[dict[str, object]] = []
+    infos: list[str] = []
 
     def check(label: str, cond: bool, detail: str = "") -> None:
         nonlocal ok
-        status = "OK " if cond else "FAIL"
+        checks.append({"label": label, "ok": bool(cond), "detail": detail})
         if not cond:
             ok = False
-        print(f"  [{status}] {label}" + (f" - {detail}" if detail else ""))
-
-    print("THE FOCUX BRAIN - doctor")
 
     # skills
     agent = build_agent()
@@ -595,24 +636,35 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 
     # user-level MCP registration (`focux install --mcp`) — info, not critical
     from runtime.install import user_mcp_registered
-    for agent, registered in user_mcp_registered().items():
+    for reg_agent, registered in user_mcp_registered().items():
         detail = "registered" if registered else "not registered (focux install --mcp)"
-        print(f"  [info] user MCP {agent}: {detail}")
+        infos.append(f"[info] user MCP {reg_agent}: {detail}")
 
     # attached workspace verification (universal installer contract)
     if args.target:
         from runtime.attach import verify_attached
-        print(f"\n  attached workspace: {Path(args.target).resolve()}")
+        infos.append(f"attached workspace: {Path(args.target).resolve()}")
         vrep = verify_attached(Path(args.target).resolve(), REPO_ROOT)
         for c in vrep.checks:
             if c.critical:
                 check(c.label, c.ok, c.detail)
             else:
-                print(f"  [info] {c.label}" + (f" - {c.detail}" if c.detail else ""))
+                infos.append(f"[info] {c.label}" + (f" - {c.detail}" if c.detail else ""))
         if not vrep.ok:
             ok = False
 
-    print("RESULT: " + ("OK - THE FOCUX BRAIN is operational." if ok else "ISSUES FOUND"))
+    data: dict[str, object] = {
+        "ok": ok,
+        "checks": checks,
+        "infos": infos,
+        "result": "OK - THE FOCUX BRAIN is operational." if ok else "ISSUES FOUND",
+    }
+    lines = ["THE FOCUX BRAIN - doctor"] + [
+        f"  [{'OK ' if c['ok'] else 'FAIL'}] {c['label']}"
+        + (f" - {c['detail']}" if c["detail"] else "")
+        for c in checks
+    ] + [f"  {i}" for i in infos] + [f"RESULT: {data['result']}"]
+    _out(args, lines, data)
     return 0 if ok else 1
 
 
@@ -680,8 +732,8 @@ def cmd_absorb(args: argparse.Namespace) -> int:
 
     sources = tuple(s.strip().lower() for s in args.sources.split(",") if s.strip())
     if not sources:
-        print("usage: focux absorb --sources github,huggingface,x [--query 'ai agent']")
-        return 2
+        return _out_err(args, "usage: focux absorb --sources github,huggingface,x "
+                              "[--query 'ai agent']")
     workspace = args.workspace or detect_workspace()
     x_bearer = os.environ.get("X_BEARER_TOKEN", "")
     results = absorb(
@@ -691,7 +743,6 @@ def cmd_absorb(args: argparse.Namespace) -> int:
         x_query=args.query,
         limit=args.limit,
     )
-    print(format_absorb(results))
 
     # store into memory so the brain can ANALIZAR with real signals
     from runtime.memory import FocuxMemory
@@ -702,8 +753,17 @@ def cmd_absorb(args: argparse.Namespace) -> int:
     finally:
         mem.close()
     ok_sources = [s for s, r in results.items() if r.ok]
-    print(f"\nabsorbed into memory ({workspace}): {stored} items "
-          f"from {', '.join(ok_sources) or 'no source'}")
+    data = {
+        "workspace": workspace,
+        "stored": stored,
+        "sources": {s: {"ok": r.ok, "error": r.error, "items": list(r.items),
+                        "fetched_at": r.fetched_at}
+                    for s, r in results.items()},
+    }
+    lines = [format_absorb(results),
+             f"\nabsorbed into memory ({workspace}): {stored} items "
+             f"from {', '.join(ok_sources) or 'no source'}"]
+    _out(args, lines, data)
     return 0 if ok_sources else 1
 
 
@@ -711,13 +771,18 @@ def cmd_modules(args: argparse.Namespace) -> int:
     """Modular system: every brain organ registered + integrity check."""
     from runtime.modules import all_modules, integrity_check
 
-    for module in all_modules():
-        deps = f" deps={','.join(module.deps)}" if module.deps else ""
-        print(f"- {module.id:14s} v{module.version:5s} {module.description}{deps}")
-
+    modules = [m.as_dict() for m in all_modules()]
     check = integrity_check()
-    print(f"\nINTEGRITY: {check['count']} checks, "
-          + ("ALL OK" if check["ok"] else f"{sum(1 for m in check['modules'] if not m['ok'])} FAILED"))
+    lines = []
+    for module in modules:
+        deps = f" deps={','.join(module['deps'])}" if module["deps"] else ""
+        lines.append(f"- {module['id']:14s} v{module['version']:5s} "
+                     f"{module['description']}{deps}")
+    lines.append("\nINTEGRITY: " + str(check["count"]) + " checks, "
+                 + ("ALL OK" if check["ok"]
+                    else f"{sum(1 for m in check['modules'] if not m['ok'])} FAILED"))
+    data = {"modules": modules, "integrity": check}
+    _out(args, lines, data)
     return 0 if check["ok"] else 1
 
 
@@ -725,7 +790,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="focux", description="THE FOCUX Agent")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    run = sub.add_parser("run", help="one-shot proposal + optional draft")
+    run = sub.add_parser("run", parents=[_JSON_PARENT], help="one-shot proposal + optional draft")
     run.add_argument("objective")
     run.add_argument("--pillar", default="content",
                      help="content|commerce|monetization|research|account")
@@ -734,28 +799,28 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--draft", action="store_true", help="also draft via LLM")
     run.set_defaults(func=cmd_run)
 
-    repl = sub.add_parser("repl", help="interactive session")
+    repl = sub.add_parser("repl", parents=[_JSON_PARENT], help="interactive session")
     repl.add_argument("--pillar", default="content")
     repl.set_defaults(func=cmd_repl)
 
-    skills = sub.add_parser("skills", help="list loaded skills")
+    skills = sub.add_parser("skills", parents=[_JSON_PARENT], help="list loaded skills")
     skills.set_defaults(func=cmd_skills)
 
-    drafts = sub.add_parser("drafts", help="list crystallized draft skills")
+    drafts = sub.add_parser("drafts", parents=[_JSON_PARENT], help="list crystallized draft skills")
     drafts.set_defaults(func=cmd_drafts)
 
-    promote = sub.add_parser("promote", help="promote a DRAFT skill to active (HUMAN review)")
+    promote = sub.add_parser("promote", parents=[_JSON_PARENT], help="promote a DRAFT skill to active (HUMAN review)")
     promote.add_argument("name")
     promote.set_defaults(func=cmd_promote)
 
-    agents = sub.add_parser("agents", help="list/run the 9 specialized business roles")
+    agents = sub.add_parser("agents", parents=[_JSON_PARENT], help="list/run the 9 specialized business roles")
     agents.add_argument("--run", default="", help="run one role (gated)")
     agents.add_argument("--objective", default="", help="objective for --run")
     agents.set_defaults(func=cmd_agents)
 
-    objective = sub.add_parser("objective", help="Objective Brain: measurable goals the brain drives toward")
+    objective = sub.add_parser("objective", parents=[_JSON_PARENT], help="Objective Brain: measurable goals the brain drives toward")
     osub = objective.add_subparsers(dest="action", required=True)
-    oadd = osub.add_parser("add", help="add an objective")
+    oadd = osub.add_parser("add", parents=[_JSON_PARENT], help="add an objective")
     oadd.add_argument("title")
     oadd.add_argument("--kpi", required=True, help="metric (followers, revenue, leads...)")
     oadd.add_argument("--target", type=float, required=True)
@@ -763,70 +828,70 @@ def main(argv: list[str] | None = None) -> int:
     oadd.add_argument("--deadline", default="", help="ISO date YYYY-MM-DD")
     oadd.add_argument("--workspace", default="")
     oadd.set_defaults(func=cmd_objective)
-    olist = osub.add_parser("list", help="list objectives")
+    olist = osub.add_parser("list", parents=[_JSON_PARENT], help="list objectives")
     olist.add_argument("--workspace", default="")
     olist.set_defaults(func=cmd_objective)
-    ostatus = osub.add_parser("status", help="progress, gap, overdue, momentum")
+    ostatus = osub.add_parser("status", parents=[_JSON_PARENT], help="progress, gap, overdue, momentum")
     ostatus.add_argument("--workspace", default="")
     ostatus.set_defaults(func=cmd_objective)
-    oset = osub.add_parser("set", help="MEDIR: record the current KPI value")
+    oset = osub.add_parser("set", parents=[_JSON_PARENT], help="MEDIR: record the current KPI value")
     oset.add_argument("id")
     oset.add_argument("--current", type=float, required=True)
     oset.add_argument("--workspace", default="")
     oset.set_defaults(func=cmd_objective)
-    odrive = osub.add_parser("drive", help="INTELLIGENCE: gap analysis -> gated plan (LLM)")
+    odrive = osub.add_parser("drive", parents=[_JSON_PARENT], help="INTELLIGENCE: gap analysis -> gated plan (LLM)")
     odrive.add_argument("--id", default="", help="one objective id (default: all)")
     odrive.add_argument("--limit", type=int, default=3)
     odrive.add_argument("--tier", default="normal")
     odrive.add_argument("--workspace", default="")
     odrive.set_defaults(func=cmd_objective)
 
-    expert = sub.add_parser("expert", help="Expert Panel: world-class domain expertise")
+    expert = sub.add_parser("expert", parents=[_JSON_PARENT], help="Expert Panel: world-class domain expertise")
     esub = expert.add_subparsers(dest="action", required=True)
-    elist = esub.add_parser("list", help="list the domain experts + playbooks")
+    elist = esub.add_parser("list", parents=[_JSON_PARENT], help="list the domain experts + playbooks")
     elist.set_defaults(func=cmd_expert)
-    eask = esub.add_parser("ask", help="consult a domain expert (LLM, gated READ)")
+    eask = esub.add_parser("ask", parents=[_JSON_PARENT], help="consult a domain expert (LLM, gated READ)")
     eask.add_argument("domain", choices=("content", "social", "ecommerce",
                                          "monetization", "opportunities"))
     eask.add_argument("question")
     eask.add_argument("--workspace", default="")
     eask.set_defaults(func=cmd_expert)
-    ereview = esub.add_parser("review", help="quality gate: PASS/REVISE a draft")
+    ereview = esub.add_parser("review", parents=[_JSON_PARENT], help="quality gate: PASS/REVISE a draft")
     ereview.add_argument("domain", choices=("content", "social", "ecommerce",
                                             "monetization", "opportunities"))
     ereview.add_argument("draft", help="the draft to review")
     ereview.add_argument("--workspace", default="")
     ereview.set_defaults(func=cmd_expert)
 
-    work = sub.add_parser("work", help="Work Harness: durable stage-gated work (Automaton mindset)")
+    work = sub.add_parser("work", parents=[_JSON_PARENT], help="Work Harness: durable stage-gated work (Automaton mindset)")
     wsub = work.add_subparsers(dest="action", required=True)
-    wframe = wsub.add_parser("frame", help="write SPEC.md (draft); YOU approve it = product review")
+    wframe = wsub.add_parser("frame", parents=[_JSON_PARENT], help="write SPEC.md (draft); YOU approve it = product review")
     wframe.add_argument("objective")
     wframe.add_argument("--domain", default="code", choices=("code", "content"))
     wframe.add_argument("--force", action="store_true", help="replace existing active work")
     wframe.add_argument("--workspace", default="")
     wframe.set_defaults(func=cmd_work)
-    wapprove = wsub.add_parser("approve", help="approve SPEC.md (product review, no model gate)")
+    wapprove = wsub.add_parser("approve", parents=[_JSON_PARENT], help="approve SPEC.md (product review, no model gate)")
     wapprove.set_defaults(func=cmd_work)
-    wplan = wsub.add_parser("plan", help="write PLAN.md (gated steps)")
+    wplan = wsub.add_parser("plan", parents=[_JSON_PARENT], help="write PLAN.md (gated steps)")
     wplan.add_argument("--workspace", default="")
     wplan.set_defaults(func=cmd_work)
-    wexec = wsub.add_parser("execute", help="gate every plan step before doing it")
+    wexec = wsub.add_parser("execute", parents=[_JSON_PARENT], help="gate every plan step before doing it")
     wexec.add_argument("--workspace", default="")
     wexec.set_defaults(func=cmd_work)
-    wverify = wsub.add_parser("verify", help="run real checks -> verified (terminal)")
+    wverify = wsub.add_parser("verify", parents=[_JSON_PARENT], help="run real checks -> verified (terminal)")
     wverify.add_argument("--confirm", action="store_true",
                          help="verify by human confirmation when no auto checks")
     wverify.add_argument("--workspace", default="")
     wverify.set_defaults(func=cmd_work)
-    wstatus = wsub.add_parser("status", help="session-start honesty: where the work is")
+    wstatus = wsub.add_parser("status", parents=[_JSON_PARENT], help="session-start honesty: where the work is")
     wstatus.set_defaults(func=cmd_work)
-    wresume = wsub.add_parser("resume", help="re-enter existing work from a fresh session")
+    wresume = wsub.add_parser("resume", parents=[_JSON_PARENT], help="re-enter existing work from a fresh session")
     wresume.set_defaults(func=cmd_work)
-    wvalid = wsub.add_parser("validate", help="consistency check of the work state")
+    wvalid = wsub.add_parser("validate", parents=[_JSON_PARENT], help="consistency check of the work state")
     wvalid.set_defaults(func=cmd_work)
 
-    focus = sub.add_parser("focus", help="directed intelligence: real goals, gaps, evidence, state")
+    focus = sub.add_parser("focus", parents=[_JSON_PARENT], help="directed intelligence: real goals, gaps, evidence, state")
     focus.add_argument("--workspace", default="",
                        help="workspace (default: auto-detect from .focux-workspace)")
     focus.add_argument("--tier", default="",
@@ -837,7 +902,7 @@ def main(argv: list[str] | None = None) -> int:
     focus.add_argument("--cash", type=float, default=0.0)
     focus.set_defaults(func=cmd_focus)
 
-    attach = sub.add_parser("attach", help="mount THE FOCUX BRAIN on any agent/business dir")
+    attach = sub.add_parser("attach", parents=[_JSON_PARENT], help="mount THE FOCUX BRAIN on any agent/business dir")
     attach.add_argument("dir", help="target directory")
     attach.add_argument("--agents", default="all",
                         help="comma list: all,claude,codex,cursor,aider,copilot,gemini")
@@ -850,44 +915,44 @@ def main(argv: list[str] | None = None) -> int:
                         help="skip MCP server registration")
     attach.set_defaults(func=cmd_attach)
 
-    install = sub.add_parser("install", help="global CLI: portable launchers on PATH (+ MCP)")
+    install = sub.add_parser("install", parents=[_JSON_PARENT], help="global CLI: portable launchers on PATH (+ MCP)")
     install.add_argument("--prefix", default="",
                          help="bin dir (default ~/.thefocux/bin)")
     install.add_argument("--mcp", action="store_true",
                          help="register thefocux MCP at user level (Codex)")
     install.set_defaults(func=cmd_install)
 
-    hb = sub.add_parser("heartbeat", help="survival tier + roles due + approvals")
+    hb = sub.add_parser("heartbeat", parents=[_JSON_PARENT], help="survival tier + roles due + approvals")
     hb.add_argument("--revenue", type=float, default=0.0)
     hb.add_argument("--cost", type=float, default=0.0)
     hb.add_argument("--cash", type=float, default=0.0)
     hb.add_argument("--approvals", type=int, default=0)
     hb.set_defaults(func=cmd_heartbeat)
 
-    doctor = sub.add_parser("doctor", help="THE FOCUX BRAIN diagnostics")
+    doctor = sub.add_parser("doctor", parents=[_JSON_PARENT], help="THE FOCUX BRAIN diagnostics")
     doctor.add_argument("--target", default="",
                         help="verify an attached workspace (focux attach <dir>)")
     doctor.set_defaults(func=cmd_doctor)
 
-    evolve = sub.add_parser("evolve", help="daily evolution cycle (analyze -> improve)")
+    evolve = sub.add_parser("evolve", parents=[_JSON_PARENT], help="daily evolution cycle (analyze -> improve)")
     evolve.add_argument("--workspace", default="",
                         help="workspace (default: auto-detect from .focux-workspace)")
     evolve.set_defaults(func=cmd_evolve)
 
-    modules = sub.add_parser("modules", help="modular system: organs + integrity check")
+    modules = sub.add_parser("modules", parents=[_JSON_PARENT], help="modular system: organs + integrity check")
     modules.set_defaults(func=cmd_modules)
 
-    multiply = sub.add_parser("multiply", help="1 asset -> 20+ outputs (revenue multiplier)")
+    multiply = sub.add_parser("multiply", parents=[_JSON_PARENT], help="1 asset -> 20+ outputs (revenue multiplier)")
     multiply.add_argument("insight", help="core insight to multiply")
     multiply.add_argument("--offer", default="", help="offer for the CTAs")
     multiply.add_argument("--draft", action="store_true", help="draft each output via LLM")
     multiply.set_defaults(func=cmd_multiply)
 
-    offer = sub.add_parser("offer", help="5-rung offer ladder: attention -> revenue")
+    offer = sub.add_parser("offer", parents=[_JSON_PARENT], help="5-rung offer ladder: attention -> revenue")
     offer.add_argument("--business", default="the business")
     offer.set_defaults(func=cmd_offer)
 
-    absorb = sub.add_parser("absorb", help="absorb REAL data (github/huggingface/x) into memory")
+    absorb = sub.add_parser("absorb", parents=[_JSON_PARENT], help="absorb REAL data (github/huggingface/x) into memory")
     absorb.add_argument("--sources", default="github,huggingface",
                         help="comma list: github,huggingface,x")
     absorb.add_argument("--query", default="ai agent", help="search query")

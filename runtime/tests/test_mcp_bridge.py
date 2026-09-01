@@ -184,3 +184,51 @@ def test_learn_tool_crystallizes_draft(tmp_path) -> None:  # type: ignore[no-unt
     ])
     data = json.loads(out[-1]["result"]["content"][0]["text"])
     assert "learned" in data  # False gracefully when no drafts_dir
+
+
+def _call_tool(name: str, arguments: dict) -> dict:
+    out = _run_mcp([
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+         "params": {"protocolVersion": "2024-11-05", "capabilities": {}}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+         "params": {"name": name, "arguments": arguments}},
+    ])
+    return json.loads(out[-1]["result"]["content"][0]["text"])
+
+
+def test_objective_add_status_mcp() -> None:
+    """The full objective surface is reachable over MCP (agent fluency)."""
+    ws = "mcp-test"
+    added = _call_tool("focux_objective_add", {
+        "workspace": ws, "title": "MCP meta", "kpi": "leads",
+        "target": 50, "deadline": "2026-12-31"})
+    assert added["objective_id"] == "mcp-meta"
+    status = _call_tool("focux_objective_status", {"workspace": ws})
+    assert any(o["objective_id"] == "mcp-meta" for o in status["statuses"])
+    measured = _call_tool("focux_objective_set", {
+        "workspace": ws, "id": "mcp-meta", "current": 25})
+    assert measured["current"] == 25
+    status2 = _call_tool("focux_objective_status", {"workspace": ws})
+    meta = [o for o in status2["statuses"] if o["objective_id"] == "mcp-meta"][0]
+    assert meta["progress"] == 0.5
+
+
+def test_work_status_mcp() -> None:
+    data = _call_tool("focux_work_status", {})
+    assert "status" in data
+    assert "resume" in data
+    assert "state" in data
+
+
+def test_new_intelligence_tools_listed() -> None:
+    out = _run_mcp([
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+         "params": {"protocolVersion": "2024-11-05", "capabilities": {}}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
+    ])
+    names = {t["name"] for t in out[-1]["result"]["tools"]}
+    for expected in ("focux_objective_add", "focux_objective_set",
+                     "focux_objective_status", "focux_drive",
+                     "focux_expert_ask", "focux_expert_review",
+                     "focux_work_status", "focux_absorb"):
+        assert expected in names

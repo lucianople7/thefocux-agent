@@ -121,3 +121,16 @@ coding agent inside THE FOCUX BRAIN:
   AGENTS.md); every self-modification is appended to the audit log.
 - **Keep the language contract**: committed artifacts in English; report to
   the operator in their language.
+
+## Fluent agent usage (work without friction)
+
+- **Prefer MCP when available**: `focux_focus`, `focux_gate`,
+  `focux_objective_add/set/status`, `focux_drive`, `focux_expert_ask/review`,
+  `focux_absorb`, `focux_work_status`, `focux_signals`, `focux_memory`,
+  `focux_survival`, `focux_heartbeat`, `focux_roles`, `focux_learn`,
+  `focux_selfmod`, `focux_redact` - 19 tools, all over stdio JSON-RPC.
+- **CLI is machine-readable too**: every `focux` command accepts `--json`
+  (objectives, focus, drive, experts, work, heartbeat, doctor, absorb,
+  agents, modules). Never parse prose: ask for JSON.
+- **Exit codes mean something**: 0 = ok, 1 = failed/REVIEW-open, 2 = usage
+  error. In `--json` mode errors come as `{"error": "..."}`.
