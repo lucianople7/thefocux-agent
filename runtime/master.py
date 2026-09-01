@@ -151,6 +151,13 @@ def daily_cycle(
         pending_approvals=0,
     )
     report["heartbeat"] = hb.as_dict()
+
+    # 6) MEJORA: the success governor - improvements at all hours (gated)
+    from .improve import improve
+
+    improve_report = improve(agent, workspace, limit=min(2, limit),
+                             tier=tier, repo_root=None)
+    report["improve"] = improve_report
     return report
 
 
@@ -208,8 +215,15 @@ def format_daily(report: dict[str, Any]) -> str:
     hb = report.get("heartbeat", {})
     lines.append(f"  5. VIGILANCIA: tier {hb.get('tier', '?')} | "
                  f"runway {hb.get('runway_days', 0):.0f}d | healthy {hb.get('healthy', '?')}")
+    improve_report = report.get("improve", {})
+    for i in improve_report.get("improvements", []):
+        lines.append(f"  6. MEJORA: [{i['decision']}] ({i['target']}) {i['improvement']}")
+    if not improve_report.get("improvements"):
+        lines.append("  6. MEJORA: none (model produced nothing parseable)")
     reviews = [a for a in drive.get("actions", []) if a["decision"] == "REVIEW"]
     reviews += [i for i in insights.get("insights", []) if i["decision"] == "REVIEW"]
+    reviews += [i for i in improve_report.get("improvements", [])
+                if i["decision"] == "REVIEW"]
     if reviews:
         lines.append(f"  {len(reviews)} REVIEW items await human approval.")
     return _safe("\n".join(lines))

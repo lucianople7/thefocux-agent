@@ -582,6 +582,20 @@ def cmd_reflect(args: argparse.Namespace) -> int:
     return _out(args, lines, {"file": str(target)})
 
 
+def cmd_improve(args: argparse.Namespace) -> int:
+    """SUCCESS GOVERNOR: improvements at all hours, always measured (gated)."""
+    from runtime.attach import detect_workspace
+    from runtime.improve import format_improve, improve
+
+    workspace = getattr(args, "workspace", "") or detect_workspace()
+    agent = build_agent(workspace=workspace)
+    report = improve(agent, workspace, system=args.system, limit=args.limit,
+                     tier=args.tier, repo_root=REPO_ROOT)
+    if report["note"]:
+        return _out_err(args, report["note"])
+    return _out(args, [format_improve(report)], report)
+
+
 def cmd_harness(args: argparse.Namespace) -> int:
     """HARNESS: make ANY software agent-native (CLI-Anything pattern)."""
     from runtime.attach import detect_workspace
@@ -1324,6 +1338,15 @@ def main(argv: list[str] | None = None) -> int:
                              help="aggregate lessons into .focux/lessons.md")
     reflect.add_argument("--workspace", default="")
     reflect.set_defaults(func=cmd_reflect)
+
+    improve_cmd = sub.add_parser("improve", parents=[_JSON_PARENT],
+                                 help="SUCCESS GOVERNOR: mejoras a todas horas, siempre medidas (gateadas)")
+    improve_cmd.add_argument("--system", action="store_true",
+                             help="focalizar en mejorar el sistema THE FOCUX mismo")
+    improve_cmd.add_argument("--limit", type=int, default=4)
+    improve_cmd.add_argument("--tier", default="normal")
+    improve_cmd.add_argument("--workspace", default="")
+    improve_cmd.set_defaults(func=cmd_improve)
 
     harness = sub.add_parser("harness", parents=[_JSON_PARENT],
                              help="HARNESS: make ANY software agent-native (CLI-Anything pattern)")

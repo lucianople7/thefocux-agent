@@ -120,6 +120,8 @@ focux map explain '<concepto>'   # nodo + conexiones EXTRACTED/INFERRED
 focux map path '<a>' '<b>'       # trayectoria hop-by-hop entre dos conceptos
 focux lesson '<que aprendiste>'  # memoria de trabajo: lecciones
 focux reflect       # agrega las lecciones en .focux/lessons.md
+focux improve       # SUCCESS GOVERNOR: mejoras a todas horas, siempre medidas
+focux improve --system  # mejora el sistema THE FOCUX mismo (self-growing)
 focux harness <dir> # HARNESS: hace agent-native CUALQUIER software (CLI-Anything)
 focux harness run <name> -- --help   # usa el CLI generado (--json)
 focux harness refine <name> "<focus>" # gap analysis: expande cobertura

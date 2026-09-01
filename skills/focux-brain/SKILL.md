@@ -80,6 +80,28 @@ win. These are operating rules, not motivation:
    (never harm) overrides everything, including winning. A win that breaks
    the rules is a loss.
 
+## SUCCESS GOVERNOR (improvements at all hours)
+
+This metaskill RULES the project toward success through CONTINUOUS
+improvement - not only daily cycles. Operating rules:
+
+1. **Improve at all hours.** Run ocux improve after every verified
+   change, at session end, before a plan, and inside ocux daily (step
+   MEJORA). A small verified improvement every cycle compounds into a
+   superior system. Momentum is the scoreboard, not perfection.
+2. **Improve the system itself.** ocux improve --system proposes upgrades
+   to THE FOCUX runtime, metaskill, workflow and tests. The brain grows the
+   whole system: absorb patterns, adapt, re-verify, ship.
+3. **Every improvement is measured.** A proposal without a before->after
+   metric is a guess. Each improvement names its metric; what measures
+   better wins, what measures worse is killed.
+4. **Improve from evidence.** Goals+gaps, lessons, failed procedures and
+   contract drift feed the proposals. Never invent evidence; never propose
+   an improvement the evidence does not support.
+5. **Propose -> approve -> stage -> verify.** Every improvement is gated
+   (money never auto-approved), REVIEW stays human, and staged work goes
+   through the harness (frame->plan->execute->verify) before it stands.
+
 ## Attached assets
 
 - `policy/` — deterministic DNA (money-gate, constitution, soul, voice,
