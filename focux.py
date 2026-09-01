@@ -341,6 +341,37 @@ def cmd_objective(args: argparse.Namespace) -> int:
         mem.close()
 
 
+def cmd_expert(args: argparse.Namespace) -> int:
+    """Expert Panel: world-class domain expertise (ask + quality review)."""
+    from runtime.attach import detect_workspace
+    from runtime.experts import ask_expert, list_experts, review_draft
+
+    workspace = getattr(args, "workspace", "") or detect_workspace()
+    if args.action == "list":
+        for expert in list_experts():
+            print(f"  - {expert['domain']:14s} {expert['title']}"
+                  + (f"  [{expert['playbook']}]" if expert["playbook"] else ""))
+        return 0
+
+    agent = build_agent(workspace=workspace)
+    if args.action == "ask":
+        answer = ask_expert(agent, args.domain, args.question, workspace)
+        print(f"[{answer.decision}] {answer.domain} expert:")
+        print(console_safe(answer.answer))
+        return 0
+
+    if args.action == "review":
+        verdict = review_draft(agent, args.domain, args.draft, workspace)
+        print(f"REVIEW [{args.domain}] -> {verdict.verdict}")
+        for item in verdict.items:
+            mark = "ok " if item.passed else "FAIL"
+            print(f"  [{mark}] {item.item} - {item.reason}")
+        if verdict.judge_reason:
+            print(f"  judge: {verdict.judge_reason}")
+        return 0 if verdict.passed else 1
+    return 2
+
+
 def cmd_heartbeat(args: argparse.Namespace) -> int:
     """Heartbeat report: survival tier + roles due + approvals."""
     from runtime.heartbeat import format_report, heartbeat
@@ -613,6 +644,23 @@ def main(argv: list[str] | None = None) -> int:
     odrive.add_argument("--tier", default="normal")
     odrive.add_argument("--workspace", default="")
     odrive.set_defaults(func=cmd_objective)
+
+    expert = sub.add_parser("expert", help="Expert Panel: world-class domain expertise")
+    esub = expert.add_subparsers(dest="action", required=True)
+    elist = esub.add_parser("list", help="list the domain experts + playbooks")
+    elist.set_defaults(func=cmd_expert)
+    eask = esub.add_parser("ask", help="consult a domain expert (LLM, gated READ)")
+    eask.add_argument("domain", choices=("content", "social", "ecommerce",
+                                         "monetization", "opportunities"))
+    eask.add_argument("question")
+    eask.add_argument("--workspace", default="")
+    eask.set_defaults(func=cmd_expert)
+    ereview = esub.add_parser("review", help="quality gate: PASS/REVISE a draft")
+    ereview.add_argument("domain", choices=("content", "social", "ecommerce",
+                                            "monetization", "opportunities"))
+    ereview.add_argument("draft", help="the draft to review")
+    ereview.add_argument("--workspace", default="")
+    ereview.set_defaults(func=cmd_expert)
 
     attach = sub.add_parser("attach", help="mount THE FOCUX BRAIN on any agent/business dir")
     attach.add_argument("dir", help="target directory")

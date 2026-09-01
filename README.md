@@ -97,7 +97,7 @@ focux doctor --target ./neg  # + verifica el workspace attached end-to-end
 focux attach ./neg --workspace mi-negocio  # UNIVERSAL + memoria por negocio
                     # + configs nativas (claude/codex/cursor/aider/copilot) + MCP
 focux install       # CLI global portable en ~/.thefocux/bin (+ --mcp)
-focux modules       # sistema modular: 22 órganos registrados + integrity check
+focux modules       # sistema modular: 23 órganos registrados + integrity check
 focux evolve        # evolución diaria: analiza lo ejecutado, propone mejoras
 focux absorb        # absorbe DATOS REALES (github/huggingface/x) a la memoria
 focux multiply '<insight>'   # REVENUE MULTIPLIER: 1 pieza -> 20+ activos
@@ -141,10 +141,10 @@ append-only. Todo es propuesta: nada se auto-activa.
 
 ## Sistema modular — cada órgano registrado y verificado
 
-`focux modules` lista los 22 órganos del brain (money-gate, constitution,
+`focux modules` lista los 23 órganos del brain (money-gate, constitution,
 soul, voice, content, memory, tools, eval, survival, heartbeat, selfmod,
 orchestrator, evolution, repurpose, offer, ingest, attach, install,
-objectives, mcp-bridge, webui...) con versión semver y dependencias.
+objectives, experts, mcp-bridge, webui...) con versión semver y dependencias.
 `integrity_check` **prueba que cada módulo importa y que el falsification del
 money-gate sigue verde** — un módulo nuevo no puede romper el sistema inmune
 en silencio.
@@ -190,6 +190,30 @@ evidencia**; cada propuesta pasa por el money-gate **antes** de entrar al
 plan — el brain propone con inteligencia pero **nunca auto-autoriza**:
 research → ALLOW, publicar → REVIEW, cobrar → REVIEW. El humano aprueba los
 REVIEW, ejecuta, mide (`set --current`), y el brain ajusta con momentum real.
+
+## Expert Panel — experiencia mundial aplicada
+
+El brain no solo gobierna: **es experto**. Lleva playbooks de nivel mundial
+por dominio (`playbooks/`) y un panel de expertos consultable:
+
+```bash
+focux expert list                          # 5 expertos + sus playbooks
+focux expert ask content "3 hooks para un post con los datos absorbidos"
+focux expert review content "<borrador>"   # calidad: PASS / REVISE
+```
+
+- **Playbooks** (`playbooks/*.md`): sistemas operativos de nivel mundial —
+  content (hooks que convierten, storytelling, CTAs), social (algoritmos por
+  plataforma, cadencia, loop de crecimiento), ecommerce (unit economics,
+  oferta, AOV/LTV/CAC), monetization (escalera, pricing, honestidad),
+  opportunities (señal → validación → lanzamiento → medir).
+- **`ask`** — consulta al experto del dominio: responde como especialista
+  mundial, fundamentado en su playbook + **señales reales absorbidas** +
+  objetivos activos (acción READ, gateada).
+- **`review`** — control de calidad ANTES de publicar/vender: pre-check
+  determinista (borradores vacíos → REVISE sin LLM) + juez LLM estricto por
+  checklist del dominio (hook, cta, evidence, offer, price, validation...).
+  Verdict = calidad, nunca permiso: el money-gate y el humano mandan.
 
 ## Agent-first: el brain completo vía MCP
 
@@ -366,10 +390,12 @@ thefocux-agent/
 │   ├── attach.py          #   instalador universal: brain en cualquier agente
 │   ├── install.py         #   CLI global portable: launchers + MCP de usuario
 │   ├── objectives.py      #   Objective Brain: metas medibles + drive (LLM gateado)
+│   ├── experts.py         #   Expert Panel: playbooks mundiales + ask + review
 │   ├── repurpose.py       #   multiplier: 1 pieza -> 20+ activos
 │   ├── offer.py           #   escalera de 5 peldaños: atención -> ingresos
 │   ├── evolution.py       #   ciclo diario: analiza -> propone mejoras
-│   └── modules.py         #   registro modular (22 órganos) + integrity check
+│   └── modules.py         #   registro modular (23 órganos) + integrity check
+├── playbooks/             # conocimiento experto mundial (5 dominios)
 ├── policy/                # DNA determinista, NO LLM en rutas de decisión
 │   ├── money_gate.py      #   approval boundary (ALLOW/REVIEW/DENY)
 │   ├── constitution.py    #   3 leyes inmutables como código
