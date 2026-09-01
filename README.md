@@ -97,6 +97,10 @@ focux doctor --target ./neg  # + verifica el workspace attached end-to-end
 focux attach ./neg --workspace mi-negocio  # UNIVERSAL + memoria por negocio
                     # + configs nativas (claude/codex/cursor/aider/copilot) + MCP
 focux install       # CLI global portable en ~/.thefocux/bin (+ --mcp)
+focux ask '<cualquier pregunta>'  # ANYTHING interface: el brain con contexto dirigido
+focux insights      # analista de oportunidades: señales reales -> oportunidades gateadas
+focux audit         # salud completa: doctor + work + attached (--json)
+focux mcp           # ejecuta el bridge MCP (19 tools) sobre stdio
 focux modules       # sistema modular: 25 órganos registrados + integrity check
 focux evolve        # evolución diaria: analiza lo ejecutado, propone mejoras
 focux absorb        # absorbe DATOS REALES (github/huggingface/x) a la memoria

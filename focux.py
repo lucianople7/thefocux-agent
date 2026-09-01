@@ -161,6 +161,18 @@ def cmd_repl(args: argparse.Namespace) -> int:
     agent = build_agent()
     print(f"THE FOCUX Agent REPL — {len(agent.skills)} skills loaded. "
           "Type 'exit' to quit.")
+    try:
+        from runtime.focus import focus_pack, format_focus
+
+        pack = focus_pack(agent.memory, agent.workspace)
+        summary = "\n".join(
+            l for l in format_focus(pack).splitlines()
+            if l.startswith(("#", "##", "- [")) or "Metas reales" in l
+        )
+        if summary:
+            print("\nFOCUS:", summary, sep="\n")
+    except Exception:  # noqa: BLE001 - focus is an enhancement
+        pass
     while True:
         try:
             line = input("focux> ").strip()
@@ -463,6 +475,99 @@ def cmd_focus(args: argparse.Namespace) -> int:
     path = write_focus_file(pack)
     lines = [format_focus(pack), f"\n(refreshed: {path})"]
     return _out(args, lines, pack.as_dict())
+
+
+def cmd_ask(args: argparse.Namespace) -> int:
+    """The anything-interface: ask the brain anything (directed intelligence)."""
+    from runtime.attach import detect_workspace
+    from runtime.ask import ask
+
+    workspace = getattr(args, "workspace", "") or detect_workspace()
+    agent = build_agent(workspace=workspace)
+    result = ask(agent, args.question, workspace)
+    lines = [f"[{result.decision}] answer:", console_safe(result.answer)]
+    _out(args, lines, result.as_dict())
+    return 0
+
+
+def cmd_insights(args: argparse.Namespace) -> int:
+    """Opportunity analyst: real signals + goals -> gated opportunities."""
+    from runtime.attach import detect_workspace
+    from runtime.ask import insights
+
+    workspace = getattr(args, "workspace", "") or detect_workspace()
+    agent = build_agent(workspace=workspace)
+    report = insights(agent, workspace, limit=args.limit, tier=args.tier)
+    if report["note"]:
+        return _out_err(args, report["note"])
+    lines = [f"INSIGHTS (workspace: {workspace}) - gated opportunities:"]
+    for item in report["insights"]:
+        lines.append(f"  [{item['decision']}] ({item['pillar']}) {item['insight']}"
+                     + (f" - why: {item['why']}" if item.get("why") else ""))
+    if not report["insights"]:
+        lines.append("  (no parseable insights from the model - nothing invented)")
+    reviews = [i for i in report["insights"] if i["decision"] == "REVIEW"]
+    if reviews:
+        lines.append("REVIEW opportunities need human approval before execution.")
+    return _out(args, lines, report)
+
+
+def cmd_mcp(args: argparse.Namespace) -> int:
+    """Run the MCP bridge over stdio (the tools any agent consumes)."""
+    import mcp_bridge
+
+    return mcp_bridge.main()
+
+
+def cmd_audit(args: argparse.Namespace) -> int:
+    """Full health: doctor + work validate + attached verification (--json)."""
+    from runtime.attach import detect_workspace, verify_attached
+    from runtime.workflow import validate, work_root
+
+    workspace = getattr(args, "workspace", "") or detect_workspace()
+    checks: list[dict[str, object]] = []
+    ok = True
+
+    def check(label: str, cond: bool, detail: str = "") -> None:
+        nonlocal ok
+        checks.append({"label": label, "ok": bool(cond), "detail": detail})
+        if not cond:
+            ok = False
+
+    # doctor core (local, fast)
+    agent = build_agent(workspace=workspace)
+    check("skills", len(agent.skills) >= 17, f"{len(agent.skills)} loaded")
+    check("money-gate falsification", default_gate().falsification_test())
+    check("memory", agent.memory is not None, f"workspace '{workspace}'")
+
+    # work harness consistency
+    work_root_path = work_root()
+    work_issues = validate(work_root_path)
+    if work_root_path.exists():
+        for issue in work_issues:
+            check("work:" + issue, False)
+        if not work_issues:
+            check("work state", True, "consistent")
+    else:
+        check("work state", True, "no staged work (ok)")
+
+    # attached workspace contract (this project)
+    target = Path.cwd()
+    if (target / ".focux-workspace").exists():
+        vrep = verify_attached(target, REPO_ROOT)
+        for c in vrep.checks:
+            if c.critical:
+                check("attach:" + c.label, c.ok, c.detail)
+
+    data: dict[str, object] = {"ok": ok, "checks": checks,
+                               "result": "AUDIT OK" if ok else "ISSUES FOUND"}
+    lines = ["THE FOCUX BRAIN - audit"] + [
+        f"  [{'OK ' if c['ok'] else 'FAIL'}] {c['label']}"
+        + (f" - {c['detail']}" if c["detail"] else "")
+        for c in checks
+    ] + [f"RESULT: {data['result']}"]
+    _out(args, lines, data)
+    return 0 if ok else 1
 
 
 def cmd_work(args: argparse.Namespace) -> int:
@@ -802,6 +907,28 @@ def main(argv: list[str] | None = None) -> int:
     repl = sub.add_parser("repl", parents=[_JSON_PARENT], help="interactive session")
     repl.add_argument("--pillar", default="content")
     repl.set_defaults(func=cmd_repl)
+
+    ask = sub.add_parser("ask", parents=[_JSON_PARENT],
+                         help="ANYTHING interface: ask the brain (directed intelligence)")
+    ask.add_argument("question", help="any question for the brain")
+    ask.add_argument("--workspace", default="")
+    ask.set_defaults(func=cmd_ask)
+
+    insights = sub.add_parser("insights", parents=[_JSON_PARENT],
+                              help="opportunity analyst: real signals -> gated opportunities")
+    insights.add_argument("--limit", type=int, default=3)
+    insights.add_argument("--tier", default="normal")
+    insights.add_argument("--workspace", default="")
+    insights.set_defaults(func=cmd_insights)
+
+    mcp = sub.add_parser("mcp", parents=[_JSON_PARENT],
+                         help="run the MCP bridge over stdio (19 tools for agents)")
+    mcp.set_defaults(func=cmd_mcp)
+
+    audit = sub.add_parser("audit", parents=[_JSON_PARENT],
+                           help="full health: doctor + work validate + attached check")
+    audit.add_argument("--workspace", default="")
+    audit.set_defaults(func=cmd_audit)
 
     skills = sub.add_parser("skills", parents=[_JSON_PARENT], help="list loaded skills")
     skills.set_defaults(func=cmd_skills)
