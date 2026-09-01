@@ -372,6 +372,98 @@ def cmd_expert(args: argparse.Namespace) -> int:
     return 2
 
 
+def cmd_work(args: argparse.Namespace) -> int:
+    """Work Harness: durable, stage-gated work (frame->plan->execute->verify)."""
+    from runtime.attach import detect_workspace
+    from runtime.workflow import (
+        approve, execute, frame, load_state, plan, resume_text, status_text,
+        validate, verify, work_root,
+    )
+
+    workspace = getattr(args, "workspace", "") or detect_workspace()
+    root = work_root()
+    action = args.action
+
+    if action == "status":
+        print(status_text(root))
+        return 0
+
+    if action == "resume":
+        print(resume_text(root))
+        return 0
+
+    if action == "validate":
+        issues = validate(root)
+        if not issues:
+            print("VALID: .focux/work state is consistent")
+            return 0
+        for issue in issues:
+            print(f"  [FAIL] {issue}")
+        return 1
+
+    agent = build_agent(workspace=workspace)
+    state = load_state(root)
+
+    if action == "frame":
+        try:
+            state = frame(agent, args.objective, domain=args.domain,
+                          workspace=workspace, force=args.force)
+        except ValueError as exc:
+            print(f"cannot frame: {exc}")
+            return 2
+        print(f"FRAMED -> {state.spec_path}")
+        print("SPEC draft written. YOUR approval is the product review "
+              "(no model gate): focux work approve")
+        return 0
+
+    if action == "approve":
+        if state is None:
+            print("no work to approve - run `focux work frame '<objective>'`")
+            return 2
+        state = approve(state)
+        print(f"SPEC approved (product review) - stage: {state.stage}")
+        print("next: focux work plan")
+        return 0
+
+    if action == "plan":
+        if state is None:
+            print("no work - run `focux work frame '<objective>'`")
+            return 2
+        state = plan(agent, state, workspace=workspace)
+        print(f"PLANNED -> {state.plan_path}")
+        print("next: focux work execute")
+        return 0
+
+    if action == "execute":
+        if state is None:
+            print("no work - run `focux work frame '<objective>'`")
+            return 2
+        gated = execute(agent, state, workspace=workspace)
+        print(f"EXECUTE (stage: {state.stage}) - plan steps gated:")
+        for step in gated:
+            print(f"  [{step['decision']}] ({step['pillar']}) {step['action']}")
+        reviews = [s for s in gated if s["decision"] == "REVIEW"]
+        if reviews:
+            print("REVIEW steps need human approval; ALLOW steps are yours "
+                  "to do across sessions. Close with: focux work verify")
+        return 0
+
+    if action == "verify":
+        if state is None:
+            print("no work - run `focux work frame '<objective>'`")
+            return 2
+        state = verify(agent, state, workspace=workspace,
+                       confirm=getattr(args, "confirm", False))
+        if state.stage == "verified":
+            print(f"VERIFIED ('{state.objective}') - harness disengaged. "
+                  "Next sessions open quiet.")
+        else:
+            print(f"verification did not pass - back to {state.stage}. "
+                  "Fix and re-run: focux work verify")
+        return 0 if state.stage == "verified" else 1
+    return 2
+
+
 def cmd_heartbeat(args: argparse.Namespace) -> int:
     """Heartbeat report: survival tier + roles due + approvals."""
     from runtime.heartbeat import format_report, heartbeat
@@ -661,6 +753,34 @@ def main(argv: list[str] | None = None) -> int:
     ereview.add_argument("draft", help="the draft to review")
     ereview.add_argument("--workspace", default="")
     ereview.set_defaults(func=cmd_expert)
+
+    work = sub.add_parser("work", help="Work Harness: durable stage-gated work (Automaton mindset)")
+    wsub = work.add_subparsers(dest="action", required=True)
+    wframe = wsub.add_parser("frame", help="write SPEC.md (draft); YOU approve it = product review")
+    wframe.add_argument("objective")
+    wframe.add_argument("--domain", default="code", choices=("code", "content"))
+    wframe.add_argument("--force", action="store_true", help="replace existing active work")
+    wframe.add_argument("--workspace", default="")
+    wframe.set_defaults(func=cmd_work)
+    wapprove = wsub.add_parser("approve", help="approve SPEC.md (product review, no model gate)")
+    wapprove.set_defaults(func=cmd_work)
+    wplan = wsub.add_parser("plan", help="write PLAN.md (gated steps)")
+    wplan.add_argument("--workspace", default="")
+    wplan.set_defaults(func=cmd_work)
+    wexec = wsub.add_parser("execute", help="gate every plan step before doing it")
+    wexec.add_argument("--workspace", default="")
+    wexec.set_defaults(func=cmd_work)
+    wverify = wsub.add_parser("verify", help="run real checks -> verified (terminal)")
+    wverify.add_argument("--confirm", action="store_true",
+                         help="verify by human confirmation when no auto checks")
+    wverify.add_argument("--workspace", default="")
+    wverify.set_defaults(func=cmd_work)
+    wstatus = wsub.add_parser("status", help="session-start honesty: where the work is")
+    wstatus.set_defaults(func=cmd_work)
+    wresume = wsub.add_parser("resume", help="re-enter existing work from a fresh session")
+    wresume.set_defaults(func=cmd_work)
+    wvalid = wsub.add_parser("validate", help="consistency check of the work state")
+    wvalid.set_defaults(func=cmd_work)
 
     attach = sub.add_parser("attach", help="mount THE FOCUX BRAIN on any agent/business dir")
     attach.add_argument("dir", help="target directory")

@@ -97,7 +97,7 @@ focux doctor --target ./neg  # + verifica el workspace attached end-to-end
 focux attach ./neg --workspace mi-negocio  # UNIVERSAL + memoria por negocio
                     # + configs nativas (claude/codex/cursor/aider/copilot) + MCP
 focux install       # CLI global portable en ~/.thefocux/bin (+ --mcp)
-focux modules       # sistema modular: 23 órganos registrados + integrity check
+focux modules       # sistema modular: 24 órganos registrados + integrity check
 focux evolve        # evolución diaria: analiza lo ejecutado, propone mejoras
 focux absorb        # absorbe DATOS REALES (github/huggingface/x) a la memoria
 focux multiply '<insight>'   # REVENUE MULTIPLIER: 1 pieza -> 20+ activos
@@ -141,13 +141,13 @@ append-only. Todo es propuesta: nada se auto-activa.
 
 ## Sistema modular — cada órgano registrado y verificado
 
-`focux modules` lista los 23 órganos del brain (money-gate, constitution,
+`focux modules` lista los 24 órganos del brain (money-gate, constitution,
 soul, voice, content, memory, tools, eval, survival, heartbeat, selfmod,
 orchestrator, evolution, repurpose, offer, ingest, attach, install,
-objectives, experts, mcp-bridge, webui...) con versión semver y dependencias.
-`integrity_check` **prueba que cada módulo importa y que el falsification del
-money-gate sigue verde** — un módulo nuevo no puede romper el sistema inmune
-en silencio.
+objectives, experts, workflow, mcp-bridge, webui...) con versión semver y
+dependencias. `integrity_check` **prueba que cada módulo importa y que el
+falsification del money-gate sigue verde** — un módulo nuevo no puede romper
+el sistema inmune en silencio.
 
 ## Absorción de datos reales — el cerebro que ve el mundo
 
@@ -214,6 +214,36 @@ focux expert review content "<borrador>"   # calidad: PASS / REVISE
   determinista (borradores vacíos → REVISE sin LLM) + juez LLM estricto por
   checklist del dominio (hook, cta, evidence, offer, price, validation...).
   Verdict = calidad, nunca permiso: el money-gate y el humano mandan.
+
+## Work Harness — trabajo durable que sobrevive a las sesiones
+
+Mentalidad adoptada del patrón Automaton (MIT): el trabajo que **excede una
+ventana de contexto** o necesita acuerdo previo pasa por etapas explícitas con
+estado durable en el proyecto (`.focux/work/`): SPEC.md, PLAN.md, ROADMAP.md,
+current.json — sobrevive a resets de contexto, reinicios y cambios multi-paso.
+
+```bash
+focux work status             # honestidad al iniciar sesion: que toca ahora
+focux work frame '<objetivo>' # SPEC.md (borrador); TU lo apruebas = product review
+focux work approve            # ningun modelo suplanta tu juicio de producto
+focux work plan               # PLAN.md con pasos gateados
+focux work execute            # cada paso pasa por el money-gate ANTES
+focux work verify             # checks reales -> verified (terminal, harness off)
+focux work resume             # re-entrar desde una sesion fresca
+focux work validate           # consistencia del estado
+```
+
+Reglas del harness:
+- **Lo que cabe en una sesión se hace directo** — el harness lo dice al
+  inicio de sesión ("DO IT DIRECTLY") en vez de dejarte adivinando.
+- **`verified` es terminal**: el harness se desengancha y las siguientes
+  sesiones abren **en silencio** hasta tu próximo objetivo.
+- **El humano aprueba el SPEC** a la salida de `frame`: esa es la revisión
+  de producto; ningún modelo la suplanta.
+- **`execute` gatea cada paso** (content→REVIEW, monetization→REVIEW,
+  research→ALLOW): la disciplina del brain sigue activa dentro del harness.
+- `verify` corre checks reales: dominio `code` → pytest del proyecto;
+  dominio `content` → el Expert Panel debe dar PASS.
 
 ## Agent-first: el brain completo vía MCP
 
@@ -391,10 +421,11 @@ thefocux-agent/
 │   ├── install.py         #   CLI global portable: launchers + MCP de usuario
 │   ├── objectives.py      #   Objective Brain: metas medibles + drive (LLM gateado)
 │   ├── experts.py         #   Expert Panel: playbooks mundiales + ask + review
+│   ├── workflow.py        #   Work Harness: etapas durables frame->...->verified
 │   ├── repurpose.py       #   multiplier: 1 pieza -> 20+ activos
 │   ├── offer.py           #   escalera de 5 peldaños: atención -> ingresos
 │   ├── evolution.py       #   ciclo diario: analiza -> propone mejoras
-│   └── modules.py         #   registro modular (23 órganos) + integrity check
+│   └── modules.py         #   registro modular (24 órganos) + integrity check
 ├── playbooks/             # conocimiento experto mundial (5 dominios)
 ├── policy/                # DNA determinista, NO LLM en rutas de decisión
 │   ├── money_gate.py      #   approval boundary (ALLOW/REVIEW/DENY)
