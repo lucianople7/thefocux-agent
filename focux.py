@@ -490,6 +490,41 @@ def cmd_ask(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_status(args: argparse.Namespace) -> int:
+    """MASTER status: everything at a glance (tier, objectives, work, MCP)."""
+    from runtime.attach import detect_workspace
+    from runtime.master import format_master_status, master_status
+    from runtime.memory import FocuxMemory
+
+    workspace = getattr(args, "workspace", "") or detect_workspace()
+    mem = FocuxMemory(REPO_ROOT / "memory" / "focux.db")
+    try:
+        data = master_status(
+            mem, workspace,
+            revenue=args.revenue, operating_cost=args.cost, cash=args.cash,
+        )
+    finally:
+        mem.close()
+    return _out(args, [format_master_status(data)], data)
+
+
+def cmd_daily(args: argparse.Namespace) -> int:
+    """The daily intelligence ritual: VER -> ENFOQUE -> ESTRATEGIA -> OPORTUNIDADES -> VIGILANCIA."""
+    from runtime.attach import detect_workspace
+    from runtime.master import daily_cycle, format_daily
+
+    workspace = getattr(args, "workspace", "") or detect_workspace()
+    sources = tuple(s.strip() for s in args.sources.split(",") if s.strip()) \
+        if args.sources else ()
+    agent = build_agent(workspace=workspace)
+    report = daily_cycle(
+        agent, workspace,
+        revenue=args.revenue, operating_cost=args.cost, cash=args.cash,
+        sources=sources, github_query=args.query, limit=args.limit,
+    )
+    return _out(args, [format_daily(report)], report)
+
+
 def cmd_insights(args: argparse.Namespace) -> int:
     """Opportunity analyst: real signals + goals -> gated opportunities."""
     from runtime.attach import detect_workspace
@@ -893,7 +928,7 @@ def cmd_modules(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="focux", description="THE FOCUX Agent")
-    sub = parser.add_subparsers(dest="command", required=True)
+    sub = parser.add_subparsers(dest="command")
 
     run = sub.add_parser("run", parents=[_JSON_PARENT], help="one-shot proposal + optional draft")
     run.add_argument("objective")
@@ -1088,7 +1123,33 @@ def main(argv: list[str] | None = None) -> int:
                         help="workspace (default: auto-detect from .focux-workspace)")
     absorb.set_defaults(func=cmd_absorb)
 
+    status = sub.add_parser("status", parents=[_JSON_PARENT],
+                            help="MASTER: todo en una mirada (tier, objetivos, work, MCP)")
+    status.add_argument("--revenue", type=float, default=0.0)
+    status.add_argument("--cost", type=float, default=0.0)
+    status.add_argument("--cash", type=float, default=0.0)
+    status.add_argument("--workspace", default="")
+    status.set_defaults(func=cmd_status)
+
+    daily = sub.add_parser("daily", parents=[_JSON_PARENT],
+                           help="ciclo diario: VER->ENFOQUE->ESTRATEGIA->OPORTUNIDADES->VIGILANCIA")
+    daily.add_argument("--sources", default="",
+                       help="comma list for the VER step (default: none = sin red)")
+    daily.add_argument("--query", default="ai agent")
+    daily.add_argument("--limit", type=int, default=3)
+    daily.add_argument("--revenue", type=float, default=0.0)
+    daily.add_argument("--cost", type=float, default=0.0)
+    daily.add_argument("--cash", type=float, default=0.0)
+    daily.add_argument("--workspace", default="")
+    daily.set_defaults(func=cmd_daily)
+
     args = parser.parse_args(argv)
+    if getattr(args, "command", None) is None:
+        # `focux` alone shows the master status (the masterpiece one-glance)
+        return cmd_status(argparse.Namespace(
+            revenue=0.0, cost=0.0, cash=0.0, workspace="",
+            json=any(a == "--json" for a in (argv or [])),
+        ))
     return args.func(args)
 
 

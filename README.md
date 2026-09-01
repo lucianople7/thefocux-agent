@@ -53,7 +53,23 @@ cualquier negocio. Monta el brain en un directorio con un comando:
 ```bash
 focux attach ./mi-negocio --workspace mi-negocio   # + espacio de memoria propio
 focux doctor --target ./mi-negocio   # verifica la instalación end-to-end
+focux                              # ESTADO MAESTRO: todo en una mirada
+focux daily                        # el ritual diario: VER->ENFOQUE->ESTRATEGIA
+                                   #   ->OPORTUNIDADES->VIGILANCIA
 ```
+
+**Los poderes que otorga a cualquier agente o negocio** (manifiesto completo
+en [`docs/POWERS.md`](docs/POWERS.md)):
+
+1. **VER el mundo real** — `absorb`: datos de GitHub/HF/X como hechos
+2. **Metas que se miden** — `objective`: KPIs, gaps, momentum
+3. **Inteligencia dirigida** — `focus` + `ask`: solo hacia las metas reales
+4. **Estrategia con evidencia** — `drive` + `insights`: propuestas gateadas
+5. **Experiencia mundial** — `expert`: playbooks + revisión PASS/REVISE
+6. **Trabajo que sobrevive** — `work`: frame→plan→execute→verify→verified
+7. **Seguridad que no negocia** — money-gate + constitución + auditoría
+8. **Mejora continua** — `evolve` + `daily`: momentum, nunca vibes
+9. **Adopción universal** — `attach` + `install` + MCP (19 tools)
 
 Cada negocio attached declara su **workspace** (`.focux-workspace`, por
 defecto el nombre del directorio): la memoria se separa por negocio, y
