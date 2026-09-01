@@ -156,6 +156,28 @@ def _tool_signals(args: dict) -> dict:
         mem.close()
 
 
+def _tool_focus(args: dict) -> dict:
+    """Directed intelligence: OUR real goals + gaps, evidence, work state.
+
+    Call this at session start: the pack tells the agent what to be smart
+    ABOUT (the active objectives) and what evidence exists. Empty objectives
+    are reported honestly - intelligence without goals is noise.
+    """
+    from runtime.focus import focus_pack
+    from runtime.memory import FocuxMemory
+
+    db = REPO / "memory" / "focux.db"
+    if not db.exists():
+        return {"workspace": "default", "objectives": [], "signals": [],
+                "work": "", "tier": "", "note": "no shared memory yet"}
+    workspace = str(args.get("workspace", "default"))
+    mem = FocuxMemory(db)
+    try:
+        return focus_pack(mem, workspace).as_dict()
+    finally:
+        mem.close()
+
+
 def _tool_selfmod(args: dict) -> dict:
     """Append-only self-modification audit (skills crystallized, etc.)."""
     from runtime.selfmod import SelfModLog, is_protected
@@ -267,6 +289,16 @@ TOOLS: dict[str, dict] = {
             },
         },
         "handler": _tool_signals,
+    },
+    "focux_focus": {
+        "description": "Directed intelligence at session start: OUR real goals + gaps, evidence, work state. Be smart ONLY about these.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workspace": {"type": "string", "description": "workspace (default)"},
+            },
+        },
+        "handler": _tool_focus,
     },
     "focux_selfmod": {
         "description": "Append-only self-modification audit (skills crystallized, drafts). Protected files listed.",

@@ -108,6 +108,12 @@ coding agent inside THE FOCUX BRAIN:
   (github/huggingface/x) into shared memory; every draft automatically
   receives them as `## Absorbed signals (REAL data)`. Research with data,
   never vibes.
+- **Be smart ONLY toward the real goals.** At session start in an attached
+  project, read .focux/focus.md (or call the focux_focus MCP tool):
+  it lists OUR active objectives with their gaps, the real evidence, the
+  work state and the survival tier. Direct your intelligence there. If the
+  pack reports NO objectives, say so and either propose setting one or do
+  the direct task - intelligence without goals is noise.
 - **Improve your own procedures.** `focux evolve` analyzes what executed and
   proposes fixes/crystallizations as DRAFT skills — proposals only, the
   human promotes.

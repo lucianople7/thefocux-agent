@@ -97,7 +97,7 @@ focux doctor --target ./neg  # + verifica el workspace attached end-to-end
 focux attach ./neg --workspace mi-negocio  # UNIVERSAL + memoria por negocio
                     # + configs nativas (claude/codex/cursor/aider/copilot) + MCP
 focux install       # CLI global portable en ~/.thefocux/bin (+ --mcp)
-focux modules       # sistema modular: 24 órganos registrados + integrity check
+focux modules       # sistema modular: 25 órganos registrados + integrity check
 focux evolve        # evolución diaria: analiza lo ejecutado, propone mejoras
 focux absorb        # absorbe DATOS REALES (github/huggingface/x) a la memoria
 focux multiply '<insight>'   # REVENUE MULTIPLIER: 1 pieza -> 20+ activos
@@ -141,13 +141,13 @@ append-only. Todo es propuesta: nada se auto-activa.
 
 ## Sistema modular — cada órgano registrado y verificado
 
-`focux modules` lista los 24 órganos del brain (money-gate, constitution,
+`focux modules` lista los 25 órganos del brain (money-gate, constitution,
 soul, voice, content, memory, tools, eval, survival, heartbeat, selfmod,
 orchestrator, evolution, repurpose, offer, ingest, attach, install,
-objectives, experts, workflow, mcp-bridge, webui...) con versión semver y
-dependencias. `integrity_check` **prueba que cada módulo importa y que el
-falsification del money-gate sigue verde** — un módulo nuevo no puede romper
-el sistema inmune en silencio.
+objectives, experts, workflow, focus, mcp-bridge, webui...) con versión
+semver y dependencias. `integrity_check` **prueba que cada módulo importa y
+que el falsification del money-gate sigue verde** — un módulo nuevo no puede
+romper el sistema inmune en silencio.
 
 ## Absorción de datos reales — el cerebro que ve el mundo
 
@@ -244,6 +244,26 @@ Reglas del harness:
   research→ALLOW): la disciplina del brain sigue activa dentro del harness.
 - `verify` corre checks reales: dominio `code` → pytest del proyecto;
   dominio `content` → el Expert Panel debe dar PASS.
+
+## FOCUS — inteligencia dirigida SOLO a nuestras metas reales
+
+Cualquier agente (Codex, Claude Code, Cursor, OpenCode...) que entre a un
+proyecto attached es **mucho más inteligente** el primer segundo: lee el
+pack de foco y sabe nuestras metas reales, sus gaps, la evidencia y dónde
+está el trabajo. Su inteligencia se dirige SOLO ahí.
+
+```bash
+focux focus                      # el pack: metas + gaps + evidencia + estado
+focux focus --revenue 300 --cost 2000 --cash 500   # + tier de supervivencia
+```
+
+- **Determinista, sin LLM**: los números salen de la memoria; nada se inventa.
+- **Dirigido, no genérico**: solo lo que sirve a los objetivos activos. Si no
+  hay metas, el pack lo DICE ("intelligence without goals is noise").
+- **Tres vías de entrega**: `focux focus` (consola), `.focux/focus.md`
+  (archivo que todo agente lee al iniciar sesión; se refresca en cada
+  comando), y la tool MCP **`focux_focus`** (cualquier agente la llama al
+  arrancar). El metaskill lo ordena: *"Be smart ONLY toward the real goals."*
 
 ## Agent-first: el brain completo vía MCP
 
@@ -422,10 +442,11 @@ thefocux-agent/
 │   ├── objectives.py      #   Objective Brain: metas medibles + drive (LLM gateado)
 │   ├── experts.py         #   Expert Panel: playbooks mundiales + ask + review
 │   ├── workflow.py        #   Work Harness: etapas durables frame->...->verified
+│   ├── focus.py           #   FOCUS: inteligencia dirigida solo a las metas
 │   ├── repurpose.py       #   multiplier: 1 pieza -> 20+ activos
 │   ├── offer.py           #   escalera de 5 peldaños: atención -> ingresos
 │   ├── evolution.py       #   ciclo diario: analiza -> propone mejoras
-│   └── modules.py         #   registro modular (24 órganos) + integrity check
+│   └── modules.py         #   registro modular (25 órganos) + integrity check
 ├── playbooks/             # conocimiento experto mundial (5 dominios)
 ├── policy/                # DNA determinista, NO LLM en rutas de decisión
 │   ├── money_gate.py      #   approval boundary (ALLOW/REVIEW/DENY)

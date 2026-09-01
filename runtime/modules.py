@@ -75,6 +75,8 @@ MODULES: tuple[Module, ...] = (
            deps=("memory", "ingest", "eval"), entry="runtime.experts"),
     Module("workflow", "1.0.0", "Work Harness: durable stage-gated work (frame->plan->execute->verify->verified)",
            deps=("memory", "ingest", "experts"), entry="runtime.workflow"),
+    Module("focus", "1.0.0", "Directed intelligence: real goals + gaps + evidence + state for ANY agent at session start",
+           deps=("memory", "ingest", "objectives", "workflow"), entry="runtime.focus"),
     Module("mcp-bridge", "1.0.0", "The brain as MCP tools for any agent",
            deps=("tools", "memory", "survival", "heartbeat", "orchestrator",
                  "selfmod"), entry="mcp_bridge"),

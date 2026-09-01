@@ -38,6 +38,22 @@ def console_safe(text: str) -> str:
         return text.encode("ascii", errors="replace").decode("ascii")
 
 
+def refresh_focus(workspace: str) -> None:
+    """Keep .focux/focus.md fresh so ANY agent reads the current directed
+    intelligence (goals, gaps, evidence, state). Never fatal."""
+    try:
+        from runtime.focus import focus_pack, write_focus_file
+        from runtime.memory import FocuxMemory
+
+        mem = FocuxMemory(REPO_ROOT / "memory" / "focux.db")
+        try:
+            write_focus_file(focus_pack(mem, workspace))
+        finally:
+            mem.close()
+    except Exception:  # noqa: BLE001 - focus is an enhancement, never fatal
+        pass
+
+
 def default_gate() -> MoneyGate:
     """L1 table: money/commerce/account/content REVIEW; read auto-approve."""
     return MoneyGate(
@@ -86,6 +102,7 @@ def build_agent(workspace: str | None = None) -> FocuxAgent:
 
 def cmd_run(args: argparse.Namespace) -> int:
     agent = build_agent()
+    refresh_focus(agent.workspace)
     print(f"THE FOCUX Agent — skills loaded: {len(agent.skills)}")
     result = agent.propose(
         pillar=args.pillar,
@@ -372,6 +389,32 @@ def cmd_expert(args: argparse.Namespace) -> int:
     return 2
 
 
+def cmd_focus(args: argparse.Namespace) -> int:
+    """FOCUS: directed intelligence for ANY agent — real goals, gaps, evidence."""
+    from runtime.attach import detect_workspace
+    from runtime.focus import focus_pack, format_focus, write_focus_file
+    from runtime.memory import FocuxMemory
+    from runtime.survival import BusinessFinances, survival_tier
+
+    workspace = getattr(args, "workspace", "") or detect_workspace()
+    tier = ""
+    if args.tier:
+        tier = args.tier
+    elif args.revenue is not None:
+        tier = survival_tier(BusinessFinances(
+            revenue=args.revenue, operating_cost=args.cost, cash=args.cash,
+        )).value
+    mem = FocuxMemory(REPO_ROOT / "memory" / "focux.db")
+    try:
+        pack = focus_pack(mem, workspace, tier=tier)
+    finally:
+        mem.close()
+    print(format_focus(pack))
+    path = write_focus_file(pack)
+    print(f"\n(refreshed: {path})")
+    return 0
+
+
 def cmd_work(args: argparse.Namespace) -> int:
     """Work Harness: durable, stage-gated work (frame->plan->execute->verify)."""
     from runtime.attach import detect_workspace
@@ -383,6 +426,7 @@ def cmd_work(args: argparse.Namespace) -> int:
     workspace = getattr(args, "workspace", "") or detect_workspace()
     root = work_root()
     action = args.action
+    refresh_focus(workspace)
 
     if action == "status":
         print(status_text(root))
@@ -781,6 +825,17 @@ def main(argv: list[str] | None = None) -> int:
     wresume.set_defaults(func=cmd_work)
     wvalid = wsub.add_parser("validate", help="consistency check of the work state")
     wvalid.set_defaults(func=cmd_work)
+
+    focus = sub.add_parser("focus", help="directed intelligence: real goals, gaps, evidence, state")
+    focus.add_argument("--workspace", default="",
+                       help="workspace (default: auto-detect from .focux-workspace)")
+    focus.add_argument("--tier", default="",
+                       help="override survival tier (default: none)")
+    focus.add_argument("--revenue", type=float, default=None,
+                       help="revenue to compute the tier")
+    focus.add_argument("--cost", type=float, default=0.0)
+    focus.add_argument("--cash", type=float, default=0.0)
+    focus.set_defaults(func=cmd_focus)
 
     attach = sub.add_parser("attach", help="mount THE FOCUX BRAIN on any agent/business dir")
     attach.add_argument("dir", help="target directory")
