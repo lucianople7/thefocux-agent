@@ -18,7 +18,9 @@ Every proposal passes the money-gate BEFORE it enters the plan, and is
 stored as an `improve` event so the next cycle sees what was proposed.
 Nothing auto-applies: propose -> human approves -> work harness stages it.
 """
+
 from __future__ import annotations
+from .console import safe as _safe
 
 import json
 from pathlib import Path
@@ -161,8 +163,3 @@ def format_improve(report: dict[str, Any]) -> str:
     return _safe("\n".join(lines))
 
 
-def _safe(text: str) -> str:
-    try:
-        return text.encode("cp1252", errors="replace").decode("cp1252")
-    except (UnicodeEncodeError, UnicodeDecodeError):
-        return text.encode("ascii", errors="replace").decode("ascii")

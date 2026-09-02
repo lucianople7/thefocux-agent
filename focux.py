@@ -59,10 +59,9 @@ def console_safe(text: str) -> str:
     """LLM output is not ASCII-safe: DeepSeek drafts contain '->' arrows,
     emoji etc. that crash Windows cp1252 consoles. Fold only the characters
     cp1252 cannot encode (keeps Spanish accents, replaces the rest with '?')."""
-    try:
-        return text.encode("cp1252", errors="replace").decode("cp1252")
-    except (UnicodeEncodeError, UnicodeDecodeError):
-        return text.encode("ascii", errors="replace").decode("ascii")
+    from runtime.console import safe
+
+    return safe(text)
 
 
 def refresh_focus(workspace: str) -> None:
@@ -1163,7 +1162,7 @@ def main(argv: list[str] | None = None) -> int:
     insights.set_defaults(func=cmd_insights)
 
     mcp = sub.add_parser("mcp", parents=[_JSON_PARENT],
-                         help="run the MCP bridge over stdio (19 tools for agents)")
+                         help="run the MCP bridge over stdio (22 tools for agents)")
     mcp.set_defaults(func=cmd_mcp)
 
     audit = sub.add_parser("audit", parents=[_JSON_PARENT],

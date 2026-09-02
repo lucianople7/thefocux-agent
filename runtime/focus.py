@@ -14,7 +14,9 @@ Principles:
 - **Delivered three ways**: `focux focus` (console), `.focux/focus.md`
   (file any agent reads at session start), `focux_focus` (MCP tool).
 """
+
 from __future__ import annotations
+from .console import safe as _safe
 
 import json
 from dataclasses import dataclass, field
@@ -137,8 +139,3 @@ def write_focus_file(pack: FocusPack, cwd: Path | None = None) -> Path:
     return path
 
 
-def _safe(text: str) -> str:
-    try:
-        return text.encode("cp1252", errors="replace").decode("cp1252")
-    except (UnicodeEncodeError, UnicodeDecodeError):
-        return text.encode("ascii", errors="replace").decode("ascii")

@@ -13,7 +13,9 @@ STDLIB-ONLY and fully local:
   neighbors; `shortest_path` traces hop by hop; `query` returns a
   keyword-scored subgraph (deterministic, honest).
 """
+
 from __future__ import annotations
+from .console import safe as _safe
 
 import ast
 import json
@@ -59,7 +61,6 @@ def build_graph(root: Path, *, max_nodes: int = 800) -> Graph:
     """Deterministic project map: Python AST + markdown docs (stdlib only)."""
     graph = Graph()
     root = root.resolve()
-    module_files: dict[str, str] = {}  # module path -> node id
     pending_calls: list[tuple[str, str]] = []  # (caller_id, callee_name)
 
     # --- python files: AST pass ---------------------------------------------
@@ -110,7 +111,6 @@ def build_graph(root: Path, *, max_nodes: int = 800) -> Graph:
                     graph.add_node(module_id, "module", alias.name,
                                    source="imports")
                     graph.add_edge(node_id, module_id, "imports", EXTRACTED)
-                    module_files[alias.name] = rel
             elif isinstance(node, ast.ImportFrom) and node.module:
                 if node.module.startswith("__"):
                     continue
@@ -327,8 +327,3 @@ def format_query(result: dict[str, Any]) -> str:
     return _safe("\n".join(lines))
 
 
-def _safe(text: str) -> str:
-    try:
-        return text.encode("cp1252", errors="replace").decode("cp1252")
-    except (UnicodeEncodeError, UnicodeDecodeError):
-        return text.encode("ascii", errors="replace").decode("ascii")

@@ -17,7 +17,9 @@ Discipline: the LLM proposes, the gate decides, the human approves REVIEW,
 the operator measures (``focux objective set <id> --current N``), and the
 brain adjusts. Momentum = measured progress rising, never vibes.
 """
+
 from __future__ import annotations
+from .console import safe as _safe
 
 import json
 from dataclasses import dataclass, field
@@ -260,11 +262,6 @@ def drive(
 # Formatting (console-safe: Windows cp1252)
 # ---------------------------------------------------------------------------
 
-def _safe(text: str) -> str:
-    try:
-        return text.encode("cp1252", errors="replace").decode("cp1252")
-    except (UnicodeEncodeError, UnicodeDecodeError):
-        return text.encode("ascii", errors="replace").decode("ascii")
 
 
 def format_status(statuses: list[ObjectiveStatus]) -> str:

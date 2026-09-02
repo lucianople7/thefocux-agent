@@ -12,7 +12,9 @@ picture and ONE daily ritual.
   VIGILANCIA (heartbeat with tier). Every step keeps the discipline: the
   LLM proposes, the gate decides, REVIEW stays human.
 """
+
 from __future__ import annotations
+from .console import safe as _safe
 
 import os
 from datetime import UTC, datetime
@@ -229,8 +231,3 @@ def format_daily(report: dict[str, Any]) -> str:
     return _safe("\n".join(lines))
 
 
-def _safe(text: str) -> str:
-    try:
-        return text.encode("cp1252", errors="replace").decode("cp1252")
-    except (UnicodeEncodeError, UnicodeDecodeError):
-        return text.encode("ascii", errors="replace").decode("ascii")

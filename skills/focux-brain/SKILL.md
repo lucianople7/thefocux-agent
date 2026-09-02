@@ -155,9 +155,10 @@ coding agent inside THE FOCUX BRAIN:
 
 - **Prefer MCP when available**: `focux_focus`, `focux_gate`,
   `focux_objective_add/set/status`, `focux_drive`, `focux_expert_ask/review`,
-  `focux_absorb`, `focux_work_status`, `focux_signals`, `focux_memory`,
-  `focux_survival`, `focux_heartbeat`, `focux_roles`, `focux_learn`,
-  `focux_selfmod`, `focux_redact` - 19 tools, all over stdio JSON-RPC.
+  `focux_absorb`, `focux_graph_explain/path/query`, `focux_work_status`,
+  `focux_signals`, `focux_memory`, `focux_survival`, `focux_heartbeat`,
+  `focux_roles`, `focux_learn`, `focux_selfmod`, `focux_redact` - 22 tools,
+  all over stdio JSON-RPC.
 - **CLI is machine-readable too**: every `focux` command accepts `--json`
   (objectives, focus, drive, experts, work, heartbeat, doctor, absorb,
   agents, modules). Never parse prose: ask for JSON.

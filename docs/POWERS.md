@@ -56,7 +56,7 @@ rising, never vibes.
 ## Poder 9 — Adopción universal (attach / install / MCP)
 One command mounts the brain into any project and configures EVERY coding
 agent (Claude Code, Codex, Cursor, Aider, Copilot, Gemini): `.focux`
-contract, per-agent configs, and the MCP bridge with 19 tools. `focux
+contract, per-agent configs, and the MCP bridge with 22 tools. `focux
 install` makes the CLI global on any machine. Any agent, any business, any
 provider — the powers are the same.
 

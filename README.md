@@ -69,7 +69,7 @@ en [`docs/POWERS.md`](docs/POWERS.md)):
 6. **Trabajo que sobrevive** — `work`: frame→plan→execute→verify→verified
 7. **Seguridad que no negocia** — money-gate + constitución + auditoría
 8. **Mejora continua** — `evolve` + `daily`: momentum, nunca vibes
-9. **Adopción universal** — `attach` + `install` + MCP (19 tools)
+9. **Adopción universal** — `attach` + `install` + MCP (22 tools)
 
 Cada negocio attached declara su **workspace** (`.focux-workspace`, por
 defecto el nombre del directorio): la memoria se separa por negocio, y
@@ -128,7 +128,7 @@ focux harness <dir> # HARNESS: hace agent-native CUALQUIER software (CLI-Anythin
 focux harness run <name> -- --help   # usa el CLI generado (--json)
 focux harness refine <name> "<focus>" # gap analysis: expande cobertura
 focux audit         # salud completa: doctor + work + attached (--json)
-focux mcp           # ejecuta el bridge MCP (19 tools) sobre stdio
+focux mcp           # ejecuta el bridge MCP (22 tools) sobre stdio
 focux modules       # sistema modular: 25 órganos registrados + integrity check
 focux evolve        # evolución diaria: analiza lo ejecutado, propone mejoras
 focux absorb        # absorbe DATOS REALES (github/huggingface/x) a la memoria
